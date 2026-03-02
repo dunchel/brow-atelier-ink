@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-brand-light text-brand-dark antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-block bg-brand-gold text-white px-8 py-3 text-sm font-medium uppercase tracking-widest
+           hover:bg-brand-taupe transition-colors duration-300;
+  }
+  .btn-outline {
+    @apply inline-block border-2 border-brand-gold text-brand-gold px-8 py-3 text-sm font-medium uppercase tracking-widest
+           hover:bg-brand-gold hover:text-white transition-colors duration-300;
+  }
+  .section-padding {
+    @apply px-6 py-20 md:px-12 lg:px-24;
+  }
+}
