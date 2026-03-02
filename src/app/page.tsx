@@ -26,12 +26,6 @@ const treatments = [
     title: "Lashes",
     description: "Lash lift, verven & volume",
     href: "/lashes",
-    image: "https://static.wixstatic.com/media/2a5a13_5650e7e45bc647daa4195a3b8f0f190c~mv2.jpeg/v1/crop/x_59,y_260,w_1079,h_1079/fill/w_600,h_600,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202023-12-01%20at%2018_50_10.jpeg",
-  },
-  {
-    title: "Faux Freckles",
-    description: "Natuurlijke getatoeeerde sproetjes",
-    href: "/diensten",
     image: "https://static.wixstatic.com/media/2a5a13_69e049596a6b42649afec75dfb454787~mv2.jpeg/v1/crop/x_40,y_167,w_691,h_691/fill/w_600,h_600,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202023-12-01%20at%2018_49_09.jpeg",
   },
   {
