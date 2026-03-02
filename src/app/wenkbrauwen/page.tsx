@@ -9,6 +9,16 @@ export const metadata: Metadata = {
     "Powder brows, brow lamination, hybrid brows, henna brows en meer bij Brow Atelier & Ink in Helmond. Ontdek de perfecte wenkbrauw behandeling voor jou.",
 };
 
+const browImages = [
+  "https://static.wixstatic.com/media/1fc3db_0940c25e759c42f2b3f768a70c7368c7~mv2.jpg/v1/crop/x_0,y_10,w_1561,h_1425/fill/w_600,h_548,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202025-12-15%20at%2016_46_edited.jpg",
+  "https://static.wixstatic.com/media/2a5a13_a1db6e2098fa4aa6a8cf061277e6857d~mv2.jpg/v1/crop/x_0,y_473,w_2250,h_2055/fill/w_600,h_548,al_c,q_80,enc_avif,quality_auto/image_167789569_edited.jpg",
+  "https://static.wixstatic.com/media/2a5a13_00319bcf6c1048598a6c62f43195cc17~mv2.jpg/v1/crop/x_0,y_635,w_3024,h_2761/fill/w_600,h_548,al_c,q_80,enc_avif,quality_auto/image_67171073_JPG.jpg",
+  "https://static.wixstatic.com/media/2a5a13_7303031df9404ce49f9b097c8b432ba9~mv2.jpg/v1/crop/x_0,y_161,w_768,h_701/fill/w_600,h_548,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202023-12-01%20at%2018_49_edited.jpg",
+  "https://static.wixstatic.com/media/1fc3db_4f228387ca6a48d09d40a59856078d0e~mv2.jpeg/v1/crop/x_0,y_366,w_1442,h_1317/fill/w_600,h_548,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202026-01-19%20at%2017_25_29.jpeg",
+  "https://static.wixstatic.com/media/2a5a13_75ed242480a748e5823a421043e571de~mv2.jpeg/v1/crop/x_0,y_161,w_768,h_701/fill/w_600,h_548,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202023-12-01%20at%2018_49_10%20(5).jpeg",
+  "https://static.wixstatic.com/media/1fc3db_c3c68ed798d0422c8a658bfeddf9d2b7~mv2.jpeg/v1/crop/x_0,y_88,w_942,h_860/fill/w_600,h_548,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202025-05-14%20at%2010_10_50.jpeg",
+];
+
 const browTreatments = [
   {
     name: "Powder Brows",
@@ -74,10 +84,18 @@ export default function WenkbrauwenPage() {
               }`}
             >
               <div className={i % 2 === 1 ? "md:order-2" : ""}>
-                <div className="aspect-[4/3] bg-brand-cream rounded-lg flex items-center justify-center">
-                  <span className="text-brand-taupe text-sm">
-                    Foto {treatment.name}
-                  </span>
+                <div className="aspect-[4/3] bg-brand-cream rounded-lg overflow-hidden">
+                  {browImages[i] ? (
+                    <img
+                      src={browImages[i]}
+                      alt={treatment.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-brand-taupe text-sm">{treatment.name}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className={i % 2 === 1 ? "md:order-1" : ""}>

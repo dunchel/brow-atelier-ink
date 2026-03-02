@@ -28,8 +28,12 @@ export default function LashesPage() {
 
       <section className="section-padding bg-white">
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-          <div className="aspect-[4/5] bg-brand-cream rounded-lg flex items-center justify-center">
-            <span className="text-brand-taupe text-sm">Foto lash lift</span>
+          <div className="aspect-[4/5] bg-brand-cream rounded-lg overflow-hidden">
+            <img
+              src="https://static.wixstatic.com/media/2a5a13_5650e7e45bc647daa4195a3b8f0f190c~mv2.jpeg/v1/crop/x_59,y_260,w_1079,h_1079/fill/w_600,h_750,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202023-12-01%20at%2018_50_10.jpeg"
+              alt="Lash lift resultaat bij Brow Atelier & Ink"
+              className="w-full h-full object-cover"
+            />
           </div>
           <div>
             <h2 className="font-heading text-2xl md:text-3xl mb-6">

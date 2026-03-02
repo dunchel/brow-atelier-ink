@@ -20,25 +20,25 @@ const treatments = [
     title: "Brows",
     description: "Powder brows, lamination, hybrid & meer",
     href: "/wenkbrauwen",
-    image: "/images/brows-hero.jpg",
+    image: "https://static.wixstatic.com/media/1fc3db_0f99f4c386ab41e688f4fc84e06121b0~mv2.png/v1/crop/x_0,y_8,w_1272,h_1272/fill/w_600,h_600,al_c,q_85,enc_avif,quality_auto/image_67171073_edited_edited_edited_edit.png",
   },
   {
     title: "Lashes",
     description: "Lash lift, verven & volume",
     href: "/lashes",
-    image: "/images/lashes-hero.jpg",
+    image: "https://static.wixstatic.com/media/2a5a13_5650e7e45bc647daa4195a3b8f0f190c~mv2.jpeg/v1/crop/x_59,y_260,w_1079,h_1079/fill/w_600,h_600,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202023-12-01%20at%2018_50_10.jpeg",
   },
   {
     title: "Faux Freckles",
     description: "Natuurlijke getatoeeerde sproetjes",
     href: "/diensten",
-    image: "/images/freckles-hero.jpg",
+    image: "https://static.wixstatic.com/media/2a5a13_69e049596a6b42649afec75dfb454787~mv2.jpeg/v1/crop/x_40,y_167,w_691,h_691/fill/w_600,h_600,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202023-12-01%20at%2018_49_09.jpeg",
   },
   {
     title: "Lip Blush",
     description: "Semi-permanente lip pigmentatie",
     href: "/diensten",
-    image: "/images/lipblush-hero.jpg",
+    image: "https://static.wixstatic.com/media/2a5a13_0a978180528240359678357dad46ddd6~mv2.jpg/v1/crop/x_0,y_578,w_3468,h_3468/fill/w_600,h_600,al_c,q_80,enc_avif,quality_auto/lipblush%20sharona%20mooi.jpg",
   },
 ];
 
@@ -47,7 +47,12 @@ export default function HomePage() {
     <>
       {/* Hero */}
       <section className="relative min-h-screen flex items-center justify-center bg-brand-cream">
-        <div className="absolute inset-0 bg-gradient-to-b from-brand-dark/30 to-brand-dark/60" />
+        <img
+          src="https://static.wixstatic.com/media/2a5a13_1bf9442c1cab46f0a52062a2e44e90f3~mv2.jpeg/v1/fill/w_1920,h_1280,al_c,q_80,enc_avif,quality_auto/WhatsApp%20Image%202023-12-01%20at%2019_50_46.jpeg"
+          alt="Brow Atelier & Ink salon"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-brand-dark/40 to-brand-dark/70" />
         <div className="relative z-10 text-center text-white px-6 max-w-3xl">
           <p className="text-xs tracking-[0.4em] uppercase mb-4 text-brand-gold">
             Jewelry &bull; Beauty &bull; Piercings &bull; Ink
@@ -95,11 +100,19 @@ export default function HomePage() {
                 className="group block"
               >
                 <div className="aspect-square bg-brand-cream rounded-lg overflow-hidden mb-4 relative">
-                  <div className="absolute inset-0 bg-brand-gold/10 group-hover:bg-brand-gold/20 transition-colors flex items-center justify-center">
-                    <span className="font-heading text-2xl text-brand-dark">
-                      {t.title}
-                    </span>
-                  </div>
+                  {t.image ? (
+                    <img
+                      src={t.image}
+                      alt={t.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-brand-gold/10 group-hover:bg-brand-gold/20 transition-colors flex items-center justify-center">
+                      <span className="font-heading text-2xl text-brand-dark">
+                        {t.title}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <h3 className="font-heading text-lg mb-1">{t.title}</h3>
                 <p className="text-sm text-brand-taupe">{t.description}</p>
@@ -142,8 +155,12 @@ export default function HomePage() {
               Bekijk behandelingen
             </Link>
           </div>
-          <div className="aspect-[4/5] bg-brand-gold/20 rounded-lg flex items-center justify-center">
-            <span className="text-brand-taupe text-sm">Foto salon</span>
+          <div className="aspect-[4/5] bg-brand-gold/20 rounded-lg overflow-hidden">
+            <img
+              src="https://static.wixstatic.com/media/2a5a13_4e6a526d030840bf8788953b855a8ea7~mv2.jpeg/v1/fill/w_768,h_1024,fp_0.5_0.5,q_90,enc_avif,quality_auto/2a5a13_4e6a526d030840bf8788953b855a8ea7~mv2.jpeg"
+              alt="Brow Atelier & Ink team"
+              className="w-full h-full object-cover"
+            />
           </div>
         </div>
       </section>
