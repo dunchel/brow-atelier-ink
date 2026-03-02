@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getAllProducts, getProductBySlug, formatProductPrice } from "@/lib/products";
+import { BuyButton } from "@/components/BuyButton";
 
 interface PageProps {
   params: { handle: string };
@@ -112,25 +113,22 @@ export default async function ProductPage({ params }: PageProps) {
               </div>
             )}
 
-            <p className="text-sm text-brand-taupe mb-6">
-              Interesse in dit product? Neem contact op via WhatsApp of loop
-              binnen in ons atelier aan de Mierloseweg 14, Helmond.
-            </p>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4 mb-4">
+              <BuyButton productTitle={product.title} />
               <a
                 href={`https://wa.me/31623747712?text=${encodeURIComponent(
-                  `Hoi! Ik heb interesse in: ${product.title}`
+                  `Hoi! Ik wil graag bestellen: ${product.title}`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-primary text-xs"
+                className="btn-outline text-xs"
               >
                 Bestel via WhatsApp
               </a>
-              <Link href="/contact" className="btn-outline text-xs">
-                Contact
-              </Link>
             </div>
+            <p className="text-xs text-brand-taupe">
+              Of loop binnen in ons atelier aan de Mierloseweg 14, Helmond.
+            </p>
           </div>
         </div>
       </section>
