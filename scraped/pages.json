@@ -1,0 +1,74 @@
+[
+  {
+    "slug": "home",
+    "url": "https://www.browatelier-ink.com/",
+    "title": "HOME | Brow Atelier & Ink",
+    "headings": [
+      "OVER ONS",
+      "Onze brow babe's"
+    ],
+    "paragraph_count": 28,
+    "image_count": 17
+  },
+  {
+    "slug": "diensten",
+    "url": "https://www.browatelier-ink.com/diensten",
+    "title": "DIENSTEN | Brow Atelier & Ink",
+    "headings": [
+      "D I E N S T E N",
+      "FAUX FRECKLES",
+      "LIP BLUSH"
+    ],
+    "paragraph_count": 14,
+    "image_count": 15
+  },
+  {
+    "slug": "wenkbrauwen",
+    "url": "https://www.browatelier-ink.com/wenkbrauwen",
+    "title": "BROWS | Brow Atelier & Ink",
+    "headings": [
+      "Brows"
+    ],
+    "paragraph_count": 27,
+    "image_count": 9
+  },
+  {
+    "slug": "contact",
+    "url": "https://www.browatelier-ink.com/contact",
+    "title": "CONTACT | Brow Atelier & Ink",
+    "headings": [
+      "Contact us"
+    ],
+    "paragraph_count": 15,
+    "image_count": 4
+  },
+  {
+    "slug": "lashes",
+    "url": "https://www.browatelier-ink.com/lashes",
+    "title": "LASHES | Brow Atelier & Ink",
+    "headings": [
+      "Lashes"
+    ],
+    "paragraph_count": 13,
+    "image_count": 2
+  },
+  {
+    "slug": "privacy-policy",
+    "url": "https://www.browatelier-ink.com/privacy-policy",
+    "title": "PRIVACY POLICY | Brow Atelier & Ink",
+    "headings": [
+      "Privacyverklaring – Brow Boetiek",
+      "Bij Brow Boetiek hechten wij veel waarde aan de privacy van onze klanten. In deze privacyverklaring leggen wij uit welke persoonsgegevens wij verzamelen, met welk doel, en hoe wij deze gegevens verwerken en beveiligen.",
+      "1. Wie zijn wij?",
+      "2. Welke gegevens verzamelen wij?",
+      "3. Waarvoor gebruiken wij deze gegevens?",
+      "4. Delen van persoonsgegevens met derden",
+      "5. Bewaartermijn",
+      "6. Jouw rechten",
+      "​",
+      "7. Gebruik van beeldmateriaal & social media"
+    ],
+    "paragraph_count": 31,
+    "image_count": 1
+  }
+]
