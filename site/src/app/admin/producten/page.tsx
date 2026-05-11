@@ -73,26 +73,27 @@ export default function ProductenPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [current, setCurrent] = useState<Product>({ ...EMPTY_PRODUCT });
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string>("");
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const handlePhotoUpload = useCallback(async (file: File) => {
     setUploading(true);
+    setUploadError("");
     setPhotoPreview(URL.createObjectURL(file));
 
     try {
       const formData = new FormData();
-      formData.append("image", file);
-      const res = await fetch(
-        "https://api.imgbb.com/1/upload?key=7a9d2b4c8e1f3a5d7b9c0e2f4a6b8d0e",
-        { method: "POST", body: formData }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const url = data.data?.display_url || data.data?.url || "";
-        setCurrent((prev) => ({ ...prev, foto: url }));
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "Upload mislukt");
       }
-    } catch {
-      // Upload failed, user can try again or paste URL manually
+
+      setCurrent((prev) => ({ ...prev, foto: data.url }));
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload mislukt");
     }
     setUploading(false);
   }, []);
@@ -263,6 +264,9 @@ export default function ProductenPage() {
                   />
                   {uploading && (
                     <p className="text-xs text-brand-gold mt-1">Uploading...</p>
+                  )}
+                  {uploadError && (
+                    <p className="text-xs text-red-500 mt-1">{uploadError}</p>
                   )}
                   <p className="text-xs text-brand-taupe mt-1">
                     Klik op het vierkant om een foto te maken of te kiezen.

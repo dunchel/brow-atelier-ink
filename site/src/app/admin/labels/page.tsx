@@ -13,6 +13,10 @@ interface LabelProduct {
   voorraad: string;
 }
 
+const PRINT_LABEL_WIDTH_MM = 100;
+const PRINT_LABEL_HEIGHT_MM = 62;
+const PRINT_QR_SIZE_PX = 92;
+
 export default function LabelsPage() {
   const [products, setProducts] = useState<LabelProduct[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -71,7 +75,7 @@ export default function LabelsPage() {
 
   const renderQrSvg = useCallback((value: string) => {
     return renderToStaticMarkup(
-      createElement(QRCodeSVG, { value, size: 64, level: "M" })
+      createElement(QRCodeSVG, { value, size: PRINT_QR_SIZE_PX, level: "M" })
     );
   }, []);
 
@@ -120,25 +124,39 @@ export default function LabelsPage() {
     .label {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
-      width: 62mm;
-      min-height: 29mm;
+      gap: 5mm;
+      padding: 4mm 5mm;
+      width: ${PRINT_LABEL_WIDTH_MM}mm;
+      height: ${PRINT_LABEL_HEIGHT_MM}mm;
       page-break-inside: avoid;
       break-inside: avoid;
+      page-break-after: always;
+      break-after: page;
     }
 
-    .qr-container { flex-shrink: 0; }
+    .label:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+
+    .qr-container {
+      flex-shrink: 0;
+      width: 24mm;
+      height: 24mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
     .qr-container svg { display: block; }
 
     .info { flex: 1; min-width: 0; }
-    .naam { font-size: 9px; font-weight: 700; line-height: 1.2; word-wrap: break-word; }
-    .prijs { font-size: 10px; font-weight: 700; margin-top: 2px; }
-    .code { font-size: 7px; color: #666; margin-top: 1px; }
+    .naam { font-size: 18px; font-weight: 700; line-height: 1.1; word-wrap: break-word; }
+    .prijs { font-size: 24px; font-weight: 700; margin-top: 2mm; line-height: 1; }
+    .code { font-size: 12px; color: #666; margin-top: 1.5mm; letter-spacing: 0.2px; }
 
     @media print {
       @page {
-        size: 62mm auto;
+        size: ${PRINT_LABEL_WIDTH_MM}mm ${PRINT_LABEL_HEIGHT_MM}mm;
         margin: 0;
       }
       body { padding: 0; }
@@ -230,10 +248,10 @@ export default function LabelsPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="font-heading text-3xl mb-2">Product Labels</h1>
         <p className="text-brand-taupe mb-6">
-          Printer: <strong>Brother QL-1100C</strong>. Per label: QR, naam, prijs
-          en leesbare code, op de rol{" "}
-          <strong>DK-22205</strong> (62 mm doorlopend papier; winkel: vaak{" "}
-          <em>22205</em> of <em>205</em>).
+          Printer: <strong>Brother QL-1100C</strong>. Layout is kwartslag
+          gedraaid en gebruikt een compacter label van{" "}
+          <strong>{PRINT_LABEL_WIDTH_MM}x{PRINT_LABEL_HEIGHT_MM} mm</strong>
+          met QR, naam, prijs en leesbare code.
         </p>
 
         {/* Filters */}
@@ -351,17 +369,17 @@ export default function LabelsPage() {
                 <div
                   key={p.barcode}
                   className="flex items-center gap-3 p-3 bg-brand-light rounded border border-brand-cream"
-                  style={{ maxWidth: "62mm" }}
+                  style={{ maxWidth: `${PRINT_LABEL_WIDTH_MM}mm`, minHeight: `${PRINT_LABEL_HEIGHT_MM}mm` }}
                 >
-                  <QRCodeSVG value={p.barcode} size={56} level="M" />
+                  <QRCodeSVG value={p.barcode} size={88} level="M" />
                   <div className="min-w-0">
-                    <p className="text-[9px] font-bold leading-tight truncate">
+                    <p className="text-sm font-bold leading-tight">
                       {p.naam}
                     </p>
-                    <p className="text-[10px] font-bold mt-0.5">
+                    <p className="text-xl font-bold mt-1 leading-none">
                       &euro;{p.prijs}
                     </p>
-                    <p className="text-[7px] text-gray-500">{p.barcode}</p>
+                    <p className="text-xs text-gray-500 mt-1">{p.barcode}</p>
                   </div>
                 </div>
               ))}
@@ -375,13 +393,14 @@ export default function LabelsPage() {
             <div className="mt-4 p-3 bg-brand-cream/50 rounded text-xs text-brand-taupe space-y-2">
               <p className="font-medium text-brand-dark">
                 In het printvenster: printer <strong>Brother QL-1100C</strong>.
-                Label/papier: 62 mm doorlopend, <strong>DK-22205</strong> (hetzelfde als
-                22205/205 in de winkel) als de driver kiest. Schaal: <strong>100%</strong>.
+                Papier: <strong>{PRINT_LABEL_WIDTH_MM} x {PRINT_LABEL_HEIGHT_MM} mm</strong>{" "}
+                (of dichtstbijzijnde 62 mm breed profiel). Schaal: <strong>100%</strong>,
+                <strong> Actual size</strong>, niet fit-to-page.
               </p>
               <p>
-                <strong>Andere rol in de machine?</strong> Alleen 62 mm{" "}
-                <strong>DK-22205</strong> (maat/rol 205). Smal (29/38 mm) past niet: cassette
-                wisselen.
+                <strong>Snijden per label:</strong> zet in de Brother-driver{" "}
+                <strong>Auto cut = on</strong>. Omdat elk label op een aparte
+                printpagina staat, snijdt de QL nu per label.
               </p>
               <p>
                 <strong>QR op het label:</strong> ja: links de QR, rechts naam,
