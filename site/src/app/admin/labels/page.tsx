@@ -24,7 +24,7 @@ export default function LabelsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("alle");
-  const [printMode, setPrintMode] = useState<PrintMode>("single");
+  const [printMode, setPrintMode] = useState<PrintMode | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const printRef = useRef<HTMLDivElement>(null);
@@ -85,6 +85,7 @@ export default function LabelsPage() {
 
   const getLabelCountForProduct = useCallback(
     (product: LabelProduct) => {
+      if (!printMode) return 0;
       if (printMode === "single") return 1;
       return parseStockCount(product.voorraad);
     },
@@ -111,7 +112,7 @@ export default function LabelsPage() {
       .replace(/'/g, "&#39;");
 
   const handlePrint = () => {
-    if (selectedProducts.length === 0 || totalLabelsToPrint === 0) return;
+    if (!printMode || selectedProducts.length === 0 || totalLabelsToPrint === 0) return;
 
     const labelsHTML = selectedPrintItems
       .map(
@@ -363,6 +364,11 @@ export default function LabelsPage() {
               </button>
             </div>
           </div>
+          {!printMode && (
+            <p className="text-xs text-orange-600 mt-3">
+              Kies eerst een modus: <strong>1 per product</strong> of <strong>Volgens voorraad</strong>.
+            </p>
+          )}
         </div>
 
         {/* Actions bar */}
@@ -382,7 +388,7 @@ export default function LabelsPage() {
           </div>
           <button
             onClick={handlePrint}
-            disabled={selected.size === 0 || totalLabelsToPrint === 0}
+            disabled={!printMode || selected.size === 0 || totalLabelsToPrint === 0}
             className="btn-primary text-xs disabled:opacity-40"
           >
             Print {totalLabelsToPrint} label{totalLabelsToPrint !== 1 ? "s" : ""}
@@ -442,7 +448,7 @@ export default function LabelsPage() {
               <div className="text-right text-xs text-brand-taupe min-w-[78px]">
                 <p>Voorraad: {parseStockCount(p.voorraad)}</p>
                 <p className="font-semibold text-brand-dark">
-                  Labels: {getLabelCountForProduct(p)}
+                  Labels: {printMode ? getLabelCountForProduct(p) : "-"}
                 </p>
               </div>
             </div>
