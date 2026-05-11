@@ -13,15 +13,18 @@ interface LabelProduct {
   voorraad: string;
 }
 
-const PRINT_LABEL_WIDTH_MM = 100;
-const PRINT_LABEL_HEIGHT_MM = 62;
-const PRINT_QR_SIZE_PX = 92;
+type PrintMode = "single" | "stock";
+
+const PRINT_LABEL_WIDTH_MM = 62;
+const PRINT_LABEL_HEIGHT_MM = 100;
+const PRINT_QR_SIZE_PX = 86;
 
 export default function LabelsPage() {
   const [products, setProducts] = useState<LabelProduct[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("alle");
+  const [printMode, setPrintMode] = useState<PrintMode>("single");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const printRef = useRef<HTMLDivElement>(null);
@@ -73,6 +76,26 @@ export default function LabelsPage() {
 
   const selectedProducts = products.filter((p) => selected.has(p.barcode));
 
+  const parseStockCount = useCallback((voorraadRaw: string) => {
+    const match = voorraadRaw.replace(",", ".").match(/-?\d+(\.\d+)?/);
+    if (!match) return 0;
+    const value = Math.floor(Number(match[0]));
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }, []);
+
+  const getLabelCountForProduct = useCallback(
+    (product: LabelProduct) => {
+      if (printMode === "single") return 1;
+      return parseStockCount(product.voorraad);
+    },
+    [parseStockCount, printMode]
+  );
+
+  const selectedPrintItems = selectedProducts.flatMap((p) =>
+    Array.from({ length: getLabelCountForProduct(p) }, () => p)
+  );
+  const totalLabelsToPrint = selectedPrintItems.length;
+
   const renderQrSvg = useCallback((value: string) => {
     return renderToStaticMarkup(
       createElement(QRCodeSVG, { value, size: PRINT_QR_SIZE_PX, level: "M" })
@@ -88,9 +111,9 @@ export default function LabelsPage() {
       .replace(/'/g, "&#39;");
 
   const handlePrint = () => {
-    if (selectedProducts.length === 0) return;
+    if (selectedProducts.length === 0 || totalLabelsToPrint === 0) return;
 
-    const labelsHTML = selectedProducts
+    const labelsHTML = selectedPrintItems
       .map(
         (p) => `
       <div class="label">
@@ -123,9 +146,11 @@ export default function LabelsPage() {
 
     .label {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 5mm;
-      padding: 4mm 5mm;
+      justify-content: flex-start;
+      gap: 2.5mm;
+      padding: 4mm 3mm;
       width: ${PRINT_LABEL_WIDTH_MM}mm;
       height: ${PRINT_LABEL_HEIGHT_MM}mm;
       page-break-inside: avoid;
@@ -141,18 +166,51 @@ export default function LabelsPage() {
 
     .qr-container {
       flex-shrink: 0;
-      width: 24mm;
-      height: 24mm;
+      width: 25mm;
+      height: 25mm;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .qr-container svg { display: block; }
 
-    .info { flex: 1; min-width: 0; }
-    .naam { font-size: 18px; font-weight: 700; line-height: 1.1; word-wrap: break-word; }
-    .prijs { font-size: 24px; font-weight: 700; margin-top: 2mm; line-height: 1; }
-    .code { font-size: 12px; color: #666; margin-top: 1.5mm; letter-spacing: 0.2px; }
+    .info {
+      width: 100%;
+      min-width: 0;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .naam {
+      width: 100%;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.15;
+      margin-top: 0.5mm;
+      overflow: hidden;
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      max-height: 42px;
+    }
+    .prijs {
+      font-size: 16px;
+      font-weight: 700;
+      margin-top: 1.2mm;
+      line-height: 1;
+    }
+    .code {
+      width: 100%;
+      font-size: 10px;
+      color: #666;
+      margin-top: 1.2mm;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
     @media print {
       @page {
@@ -248,10 +306,10 @@ export default function LabelsPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="font-heading text-3xl mb-2">Product Labels</h1>
         <p className="text-brand-taupe mb-6">
-          Printer: <strong>Brother QL-1100C</strong>. Layout is kwartslag
-          gedraaid en gebruikt een compacter label van{" "}
+          Printer: <strong>Brother QL-1100C</strong>. Verticale layout met QR
+          boven en tekst eronder op{" "}
           <strong>{PRINT_LABEL_WIDTH_MM}x{PRINT_LABEL_HEIGHT_MM} mm</strong>
-          met QR, naam, prijs en leesbare code.
+          zodat de tekst netjes binnen de codebreedte blijft.
         </p>
 
         {/* Filters */}
@@ -280,7 +338,7 @@ export default function LabelsPage() {
         </div>
 
         {/* Actions bar */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
             <button
               onClick={selectAll}
@@ -291,16 +349,44 @@ export default function LabelsPage() {
                 : "Selecteer alles"}
             </button>
             <span className="text-sm text-brand-taupe">
-              {selected.size} geselecteerd
+              {selected.size} producten geselecteerd
             </span>
           </div>
           <button
             onClick={handlePrint}
-            disabled={selected.size === 0}
+            disabled={selected.size === 0 || totalLabelsToPrint === 0}
             className="btn-primary text-xs disabled:opacity-40"
           >
-            Print {selected.size} label{selected.size !== 1 ? "s" : ""}
+            Print {totalLabelsToPrint} label{totalLabelsToPrint !== 1 ? "s" : ""}
           </button>
+        </div>
+        <div className="flex items-center justify-between mb-4 gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase tracking-widest text-brand-taupe">Aantal labels:</span>
+            <button
+              onClick={() => setPrintMode("single")}
+              className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                printMode === "single"
+                  ? "bg-brand-dark text-white border-brand-dark"
+                  : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
+              }`}
+            >
+              1 per product
+            </button>
+            <button
+              onClick={() => setPrintMode("stock")}
+              className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                printMode === "stock"
+                  ? "bg-brand-dark text-white border-brand-dark"
+                  : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
+              }`}
+            >
+              Volgens voorraad
+            </button>
+          </div>
+          <span className="text-xs text-brand-taupe">
+            Totaal labels: <strong>{totalLabelsToPrint}</strong>
+          </span>
         </div>
 
         {/* Product list */}
@@ -348,6 +434,12 @@ export default function LabelsPage() {
               <span className="text-xs font-mono text-brand-taupe flex-shrink-0">
                 {p.barcode}
               </span>
+              <div className="text-right text-xs text-brand-taupe min-w-[78px]">
+                <p>Voorraad: {parseStockCount(p.voorraad)}</p>
+                <p className="font-semibold text-brand-dark">
+                  Labels: {getLabelCountForProduct(p)}
+                </p>
+              </div>
             </div>
           ))}
         </div>
@@ -359,33 +451,40 @@ export default function LabelsPage() {
         )}
 
         {/* Preview section */}
-        {selectedProducts.length > 0 && (
+        {selectedPrintItems.length > 0 && (
           <div className="mt-8 bg-white rounded-lg border border-brand-cream p-6">
             <h2 className="font-heading text-xl mb-4">
-              Preview ({selectedProducts.length} labels)
+              Preview ({selectedPrintItems.length} labels)
             </h2>
             <div ref={printRef} className="space-y-3">
-              {selectedProducts.slice(0, 5).map((p) => (
+              {selectedPrintItems.slice(0, 5).map((p, idx) => (
                 <div
-                  key={p.barcode}
-                  className="flex items-center gap-3 p-3 bg-brand-light rounded border border-brand-cream"
+                  key={`${p.barcode}-${idx}`}
+                  className="flex flex-col items-center gap-2 p-3 bg-brand-light rounded border border-brand-cream"
                   style={{ maxWidth: `${PRINT_LABEL_WIDTH_MM}mm`, minHeight: `${PRINT_LABEL_HEIGHT_MM}mm` }}
                 >
-                  <QRCodeSVG value={p.barcode} size={88} level="M" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold leading-tight">
+                  <QRCodeSVG value={p.barcode} size={86} level="M" />
+                  <div className="min-w-0 w-full text-center">
+                    <p
+                      className="text-xs font-bold leading-tight break-words overflow-hidden"
+                      style={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: "vertical",
+                      }}
+                    >
                       {p.naam}
                     </p>
-                    <p className="text-xl font-bold mt-1 leading-none">
+                    <p className="text-lg font-bold mt-1 leading-none">
                       &euro;{p.prijs}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">{p.barcode}</p>
+                    <p className="text-[10px] text-gray-500 mt-1 truncate">{p.barcode}</p>
                   </div>
                 </div>
               ))}
-              {selectedProducts.length > 5 && (
+              {selectedPrintItems.length > 5 && (
                 <p className="text-xs text-brand-taupe">
-                  + {selectedProducts.length - 5} meer...
+                  + {selectedPrintItems.length - 5} meer...
                 </p>
               )}
             </div>
@@ -395,7 +494,8 @@ export default function LabelsPage() {
                 In het printvenster: printer <strong>Brother QL-1100C</strong>.
                 Papier: <strong>{PRINT_LABEL_WIDTH_MM} x {PRINT_LABEL_HEIGHT_MM} mm</strong>{" "}
                 (of dichtstbijzijnde 62 mm breed profiel). Schaal: <strong>100%</strong>,
-                <strong> Actual size</strong>, niet fit-to-page.
+                <strong> Actual size</strong>, niet fit-to-page. Oriëntatie:
+                <strong> portrait</strong>.
               </p>
               <p>
                 <strong>Snijden per label:</strong> zet in de Brother-driver{" "}
@@ -403,8 +503,8 @@ export default function LabelsPage() {
                 printpagina staat, snijdt de QL nu per label.
               </p>
               <p>
-                <strong>QR op het label:</strong> ja: links de QR, rechts naam,
-                prijs en de barcode-tekst. De QR is dezelfde waarde als de
+                <strong>QR op het label:</strong> ja: boven de QR, daaronder
+                naam, prijs en de barcode-tekst. De QR is dezelfde waarde als de
                 geprinte code (bijv. BA-KET-001); scan testen met de
                 iPhone-cameratoets.
               </p>
