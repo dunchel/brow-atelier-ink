@@ -14,10 +14,17 @@ interface LabelProduct {
 }
 
 type PrintMode = "single" | "stock";
+type StickerLayout = "single" | "double" | "grid";
 
 const PRINT_LABEL_WIDTH_MM = 62;
 const PRINT_LABEL_HEIGHT_MM = 100;
 const PRINT_QR_SIZE_PX = 86;
+
+const GRID_STICKER_WIDTH_MM = 102;
+const GRID_STICKER_HEIGHT_MM = 150;
+const GRID_COLS = 2;
+const GRID_ROWS = 5;
+const GRID_LABELS_PER_STICKER = GRID_COLS * GRID_ROWS;
 
 export default function LabelsPage() {
   const [products, setProducts] = useState<LabelProduct[]>([]);
@@ -25,7 +32,19 @@ export default function LabelsPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("alle");
   const [printMode, setPrintMode] = useState<PrintMode | null>(null);
-  const [labelsPerSticker, setLabelsPerSticker] = useState<1 | 2>(2);
+  const [stickerLayout, setStickerLayout] = useState<StickerLayout>("double");
+
+  const labelsPerSticker =
+    stickerLayout === "single"
+      ? 1
+      : stickerLayout === "double"
+      ? 2
+      : GRID_LABELS_PER_STICKER;
+
+  const stickerWidthMm =
+    stickerLayout === "grid" ? GRID_STICKER_WIDTH_MM : PRINT_LABEL_WIDTH_MM;
+  const stickerHeightMm =
+    stickerLayout === "grid" ? GRID_STICKER_HEIGHT_MM : PRINT_LABEL_HEIGHT_MM;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const printRef = useRef<HTMLDivElement>(null);
@@ -124,10 +143,8 @@ export default function LabelsPage() {
     }, []);
 
     const labelsHTML = stickers
-      .map(
-        (sticker) => `
-      <div class="sticker ${labelsPerSticker === 2 ? "double" : "single"}">
-        ${sticker
+      .map((sticker) => {
+        const labelsMarkup = sticker
           .map(
             (p) => `
         <div class="label-item">
@@ -139,14 +156,22 @@ export default function LabelsPage() {
           </div>
         </div>`
           )
-          .join("")}
-        ${
-          labelsPerSticker === 2 && sticker.length === 1
-            ? '<div class="label-item placeholder"></div>'
-            : ""
-        }
-      </div>`
-      )
+          .join("");
+
+        const missing = labelsPerSticker - sticker.length;
+        const placeholders =
+          missing > 0
+            ? Array.from({ length: missing })
+                .map(() => '<div class="label-item placeholder"></div>')
+                .join("")
+            : "";
+
+        return `
+      <div class="sticker ${stickerLayout}">
+        ${labelsMarkup}
+        ${placeholders}
+      </div>`;
+      })
       .join("");
 
     const fullHtml = `<!DOCTYPE html>
@@ -172,8 +197,8 @@ export default function LabelsPage() {
       align-items: stretch;
       gap: 2mm;
       padding: 4mm 3mm;
-      width: ${PRINT_LABEL_WIDTH_MM}mm;
-      height: ${PRINT_LABEL_HEIGHT_MM}mm;
+      width: ${stickerWidthMm}mm;
+      height: ${stickerHeightMm}mm;
       page-break-inside: avoid;
       break-inside: avoid;
       page-break-after: always;
@@ -183,6 +208,14 @@ export default function LabelsPage() {
     .sticker:last-child {
       page-break-after: auto;
       break-after: auto;
+    }
+
+    .sticker.grid {
+      display: grid;
+      grid-template-columns: repeat(${GRID_COLS}, 1fr);
+      grid-template-rows: repeat(${GRID_ROWS}, 1fr);
+      gap: 1.5mm;
+      padding: 3mm;
     }
 
     .label-item {
@@ -218,6 +251,38 @@ export default function LabelsPage() {
     }
     .sticker.double .prijs { font-size: 13px; margin-top: 0.7mm; }
     .sticker.double .code { font-size: 9px; margin-top: 0.6mm; }
+
+    .sticker.grid .label-item {
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 1.5mm;
+      padding: 1mm;
+      border: 1px dashed #c0c0c0;
+      border-radius: 1mm;
+      height: 100%;
+      overflow: hidden;
+    }
+    .sticker.grid .qr-container {
+      width: 18mm;
+      height: 18mm;
+    }
+    .sticker.grid .info {
+      width: auto;
+      flex: 1;
+      text-align: left;
+      align-items: flex-start;
+    }
+    .sticker.grid .naam {
+      font-size: 8px;
+      line-height: 1.1;
+      -webkit-line-clamp: 2;
+      max-height: 18px;
+      margin-top: 0;
+      text-align: left;
+    }
+    .sticker.grid .prijs { font-size: 11px; margin-top: 0.5mm; }
+    .sticker.grid .code { font-size: 7px; margin-top: 0.4mm; }
 
     .qr-container {
       flex-shrink: 0;
@@ -269,7 +334,7 @@ export default function LabelsPage() {
 
     @media print {
       @page {
-        size: ${PRINT_LABEL_WIDTH_MM}mm ${PRINT_LABEL_HEIGHT_MM}mm;
+        size: ${stickerWidthMm}mm ${stickerHeightMm}mm;
         margin: 0;
       }
       body { padding: 0; }
@@ -361,10 +426,11 @@ export default function LabelsPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="font-heading text-3xl mb-2">Product Labels</h1>
         <p className="text-brand-taupe mb-6">
-          Printer: <strong>Brother QL-1100C</strong>. Verticale layout met QR
-          boven en tekst eronder op{" "}
-          <strong>{PRINT_LABEL_WIDTH_MM}x{PRINT_LABEL_HEIGHT_MM} mm</strong>
-          zodat de tekst netjes binnen de codebreedte blijft.
+          Printer: <strong>Brother QL-1100C</strong>. Kies hieronder hoeveel
+          labels per product (1 of voorraad) en welke indeling op de sticker.
+          Voor de <strong>brede rol DK-22243 (102 mm)</strong> kun je{" "}
+          {GRID_LABELS_PER_STICKER} labels op één vel printen en zelf
+          uitknippen.
         </p>
 
         {/* Filters */}
@@ -427,11 +493,11 @@ export default function LabelsPage() {
         <div className="bg-white rounded-lg border border-brand-cream p-4 mb-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <p className="text-xs uppercase tracking-widest text-brand-taupe">Indeling sticker</p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={() => setLabelsPerSticker(1)}
+                onClick={() => setStickerLayout("single")}
                 className={`px-3 py-1.5 text-xs rounded border transition-colors whitespace-nowrap ${
-                  labelsPerSticker === 1
+                  stickerLayout === "single"
                     ? "bg-brand-dark text-white border-brand-dark"
                     : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
                 }`}
@@ -439,17 +505,35 @@ export default function LabelsPage() {
                 1 per sticker
               </button>
               <button
-                onClick={() => setLabelsPerSticker(2)}
+                onClick={() => setStickerLayout("double")}
                 className={`px-3 py-1.5 text-xs rounded border transition-colors whitespace-nowrap ${
-                  labelsPerSticker === 2
+                  stickerLayout === "double"
                     ? "bg-brand-dark text-white border-brand-dark"
                     : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
                 }`}
               >
                 2 per sticker
               </button>
+              <button
+                onClick={() => setStickerLayout("grid")}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors whitespace-nowrap ${
+                  stickerLayout === "grid"
+                    ? "bg-brand-dark text-white border-brand-dark"
+                    : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
+                }`}
+              >
+                Brede rol (102mm) — {GRID_LABELS_PER_STICKER} per vel
+              </button>
             </div>
           </div>
+          {stickerLayout === "grid" && (
+            <p className="text-xs text-brand-taupe mt-3">
+              Voor de brede rol <strong>DK-22243 (102 mm)</strong>. Er passen{" "}
+              <strong>{GRID_LABELS_PER_STICKER}</strong> labels op één vel
+              ({GRID_COLS} kolommen × {GRID_ROWS} rijen). Snijlijnen worden
+              meegeprint zodat je ze met de hand kunt uitknippen.
+            </p>
+          )}
         </div>
 
         {/* Actions bar */}
@@ -585,19 +669,36 @@ export default function LabelsPage() {
             <div className="mt-4 p-3 bg-brand-cream/50 rounded text-xs text-brand-taupe space-y-2">
               <p className="font-medium text-brand-dark">
                 In het printvenster: printer <strong>Brother QL-1100C</strong>.
-                Papier: <strong>{PRINT_LABEL_WIDTH_MM} x {PRINT_LABEL_HEIGHT_MM} mm</strong>{" "}
-                (of dichtstbijzijnde 62 mm breed profiel). Schaal: <strong>100%</strong>,
-                <strong> Actual size</strong>, niet fit-to-page. Oriëntatie:
-                <strong> portrait</strong>.
+                Papier: <strong>{stickerWidthMm} x {stickerHeightMm} mm</strong>{" "}
+                {stickerLayout === "grid" ? (
+                  <>
+                    (kies een <strong>102 mm</strong> formaat dat dichtbij{" "}
+                    {GRID_STICKER_HEIGHT_MM} mm zit, of <strong>102 mm continuous</strong>)
+                  </>
+                ) : (
+                  <>(of dichtstbijzijnde 62 mm breed profiel)</>
+                )}
+                . Schaal: <strong>100%</strong>, <strong>Actual size</strong>,
+                niet fit-to-page. Oriëntatie: <strong>portrait</strong>.
               </p>
+              {stickerLayout === "grid" ? (
+                <p>
+                  <strong>Brede rol DK-22243:</strong> {GRID_LABELS_PER_STICKER}{" "}
+                  labels per vel ({GRID_COLS} × {GRID_ROWS}) met dunne
+                  snijlijnen. Knip met de hand uit. Zet{" "}
+                  <strong>Auto cut = on</strong> zodat ieder vel netjes
+                  afgesneden wordt.
+                </p>
+              ) : (
+                <p>
+                  <strong>Snijden per label:</strong> zet in de Brother-driver{" "}
+                  <strong>Auto cut = on</strong>. Omdat elk label op een aparte
+                  printpagina staat, snijdt de QL nu per label.
+                </p>
+              )}
               <p>
-                <strong>Snijden per label:</strong> zet in de Brother-driver{" "}
-                <strong>Auto cut = on</strong>. Omdat elk label op een aparte
-                printpagina staat, snijdt de QL nu per label.
-              </p>
-              <p>
-                <strong>QR op het label:</strong> ja: boven de QR, daaronder
-                naam, prijs en de barcode-tekst. De QR is dezelfde waarde als de
+                <strong>QR op het label:</strong> boven de QR, daaronder naam,
+                prijs en de barcode-tekst. De QR is dezelfde waarde als de
                 geprinte code (bijv. BA-KET-001); scan testen met de
                 iPhone-cameratoets.
               </p>
