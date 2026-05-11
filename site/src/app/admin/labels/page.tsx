@@ -25,6 +25,7 @@ export default function LabelsPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("alle");
   const [printMode, setPrintMode] = useState<PrintMode | null>(null);
+  const [labelsPerSticker, setLabelsPerSticker] = useState<1 | 2>(2);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const printRef = useRef<HTMLDivElement>(null);
@@ -96,6 +97,7 @@ export default function LabelsPage() {
     Array.from({ length: getLabelCountForProduct(p) }, () => p)
   );
   const totalLabelsToPrint = selectedPrintItems.length;
+  const totalStickersToPrint = Math.ceil(totalLabelsToPrint / labelsPerSticker);
 
   const renderQrSvg = useCallback((value: string) => {
     return renderToStaticMarkup(
@@ -114,16 +116,35 @@ export default function LabelsPage() {
   const handlePrint = () => {
     if (!printMode || selectedProducts.length === 0 || totalLabelsToPrint === 0) return;
 
-    const labelsHTML = selectedPrintItems
+    const stickers = selectedPrintItems.reduce<LabelProduct[][]>((acc, item, idx) => {
+      const pageIdx = Math.floor(idx / labelsPerSticker);
+      if (!acc[pageIdx]) acc[pageIdx] = [];
+      acc[pageIdx].push(item);
+      return acc;
+    }, []);
+
+    const labelsHTML = stickers
       .map(
-        (p) => `
-      <div class="label">
-        <div class="qr-container">${renderQrSvg(p.barcode)}</div>
-        <div class="info">
-          <div class="naam">${escapeHtml(p.naam)}</div>
-          <div class="prijs">&euro;${escapeHtml(p.prijs)}</div>
-          <div class="code">${escapeHtml(p.barcode)}</div>
-        </div>
+        (sticker) => `
+      <div class="sticker ${labelsPerSticker === 2 ? "double" : "single"}">
+        ${sticker
+          .map(
+            (p) => `
+        <div class="label-item">
+          <div class="qr-container">${renderQrSvg(p.barcode)}</div>
+          <div class="info">
+            <div class="naam">${escapeHtml(p.naam)}</div>
+            <div class="prijs">&euro;${escapeHtml(p.prijs)}</div>
+            <div class="code">${escapeHtml(p.barcode)}</div>
+          </div>
+        </div>`
+          )
+          .join("")}
+        ${
+          labelsPerSticker === 2 && sticker.length === 1
+            ? '<div class="label-item placeholder"></div>'
+            : ""
+        }
       </div>`
       )
       .join("");
@@ -138,19 +159,18 @@ export default function LabelsPage() {
 
     @media screen {
       body { padding: 20px; background: #f5f5f5; }
-      .label {
+      .sticker {
         background: white;
         border: 1px dashed #ccc;
         margin-bottom: 10px;
       }
     }
 
-    .label {
+    .sticker {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 2.5mm;
+      align-items: stretch;
+      gap: 2mm;
       padding: 4mm 3mm;
       width: ${PRINT_LABEL_WIDTH_MM}mm;
       height: ${PRINT_LABEL_HEIGHT_MM}mm;
@@ -160,10 +180,44 @@ export default function LabelsPage() {
       break-after: page;
     }
 
-    .label:last-child {
+    .sticker:last-child {
       page-break-after: auto;
       break-after: auto;
     }
+
+    .label-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 1.8mm;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .sticker.double .label-item {
+      height: calc((100% - 2mm) / 2);
+      border-bottom: 1px dashed #d7d7d7;
+      padding-bottom: 1mm;
+    }
+
+    .sticker.double .label-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .label-item.placeholder {
+      visibility: hidden;
+    }
+
+    .sticker.double .qr-container { width: 17mm; height: 17mm; }
+    .sticker.double .naam {
+      font-size: 10px;
+      -webkit-line-clamp: 2;
+      max-height: 24px;
+    }
+    .sticker.double .prijs { font-size: 13px; margin-top: 0.7mm; }
+    .sticker.double .code { font-size: 9px; margin-top: 0.6mm; }
 
     .qr-container {
       flex-shrink: 0;
@@ -219,7 +273,7 @@ export default function LabelsPage() {
         margin: 0;
       }
       body { padding: 0; }
-      .label { margin: 0; border: none; }
+      .sticker { margin: 0; border: none; }
     }
   </style>
 </head>
@@ -370,6 +424,33 @@ export default function LabelsPage() {
             </p>
           )}
         </div>
+        <div className="bg-white rounded-lg border border-brand-cream p-4 mb-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-xs uppercase tracking-widest text-brand-taupe">Indeling sticker</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setLabelsPerSticker(1)}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors whitespace-nowrap ${
+                  labelsPerSticker === 1
+                    ? "bg-brand-dark text-white border-brand-dark"
+                    : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
+                }`}
+              >
+                1 per sticker
+              </button>
+              <button
+                onClick={() => setLabelsPerSticker(2)}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors whitespace-nowrap ${
+                  labelsPerSticker === 2
+                    ? "bg-brand-dark text-white border-brand-dark"
+                    : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
+                }`}
+              >
+                2 per sticker
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Actions bar */}
         <div className="flex items-center justify-between mb-2">
@@ -396,7 +477,8 @@ export default function LabelsPage() {
         </div>
         <div className="mb-4">
           <span className="text-xs text-brand-taupe">
-            Totaal labels: <strong>{totalLabelsToPrint}</strong>
+            Totaal labels: <strong>{totalLabelsToPrint}</strong> • Stickers:{" "}
+            <strong>{totalStickersToPrint}</strong>
           </span>
         </div>
 
