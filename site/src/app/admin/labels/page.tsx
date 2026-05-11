@@ -341,10 +341,10 @@ export default function LabelsPage() {
         <div className="bg-white rounded-lg border border-brand-cream p-4 mb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <p className="text-xs uppercase tracking-widest text-brand-taupe">Aantal labels</p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setPrintMode("single")}
-                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                className={`px-3 py-1.5 text-xs rounded border transition-colors whitespace-nowrap ${
                   printMode === "single"
                     ? "bg-brand-dark text-white border-brand-dark"
                     : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
@@ -354,7 +354,7 @@ export default function LabelsPage() {
               </button>
               <button
                 onClick={() => setPrintMode("stock")}
-                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                className={`px-3 py-1.5 text-xs rounded border transition-colors whitespace-nowrap ${
                   printMode === "stock"
                     ? "bg-brand-dark text-white border-brand-dark"
                     : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
