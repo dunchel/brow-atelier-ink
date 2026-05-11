@@ -337,6 +337,34 @@ export default function LabelsPage() {
           </div>
         </div>
 
+        <div className="bg-white rounded-lg border border-brand-cream p-4 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-xs uppercase tracking-widest text-brand-taupe">Aantal labels</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPrintMode("single")}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                  printMode === "single"
+                    ? "bg-brand-dark text-white border-brand-dark"
+                    : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
+                }`}
+              >
+                1 per product
+              </button>
+              <button
+                onClick={() => setPrintMode("stock")}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                  printMode === "stock"
+                    ? "bg-brand-dark text-white border-brand-dark"
+                    : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
+                }`}
+              >
+                Volgens voorraad
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Actions bar */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
@@ -360,30 +388,7 @@ export default function LabelsPage() {
             Print {totalLabelsToPrint} label{totalLabelsToPrint !== 1 ? "s" : ""}
           </button>
         </div>
-        <div className="flex items-center justify-between mb-4 gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs uppercase tracking-widest text-brand-taupe">Aantal labels:</span>
-            <button
-              onClick={() => setPrintMode("single")}
-              className={`px-3 py-1.5 text-xs rounded border transition-colors ${
-                printMode === "single"
-                  ? "bg-brand-dark text-white border-brand-dark"
-                  : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
-              }`}
-            >
-              1 per product
-            </button>
-            <button
-              onClick={() => setPrintMode("stock")}
-              className={`px-3 py-1.5 text-xs rounded border transition-colors ${
-                printMode === "stock"
-                  ? "bg-brand-dark text-white border-brand-dark"
-                  : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
-              }`}
-            >
-              Volgens voorraad
-            </button>
-          </div>
+        <div className="mb-4">
           <span className="text-xs text-brand-taupe">
             Totaal labels: <strong>{totalLabelsToPrint}</strong>
           </span>
