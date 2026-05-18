@@ -13,6 +13,29 @@ interface Upload {
   verified: boolean;
 }
 
+interface PhotoCheckItem {
+  naam: string;
+  barcode: string;
+  categorie: string;
+  url: string;
+  status: "ok" | "broken" | "missing" | "unknown";
+  httpStatus?: number;
+  error?: string;
+}
+
+interface PhotoCheckSummary {
+  total: number;
+  ok: number;
+  broken: number;
+  missing: number;
+}
+
+interface PhotoCheckResult {
+  summary: PhotoCheckSummary;
+  broken: PhotoCheckItem[];
+  missing: PhotoCheckItem[];
+}
+
 async function convertToJpg(file: File): Promise<File> {
   if (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") {
     return file;
@@ -60,6 +83,25 @@ export default function UploadPage() {
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [checkLoading, setCheckLoading] = useState(false);
+  const [checkResult, setCheckResult] = useState<PhotoCheckResult | null>(null);
+  const [checkError, setCheckError] = useState<string>("");
+
+  const runPhotoCheck = useCallback(async () => {
+    setCheckLoading(true);
+    setCheckError("");
+    setCheckResult(null);
+    try {
+      const res = await fetch("/api/admin/check-photos");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Check mislukt");
+      setCheckResult(data);
+    } catch (err) {
+      setCheckError(err instanceof Error ? err.message : "Check mislukt");
+    } finally {
+      setCheckLoading(false);
+    }
+  }, []);
 
   const updateUpload = (name: string, updates: Partial<Upload>) => {
     setUploads((prev) =>
@@ -208,6 +250,123 @@ export default function UploadPage() {
           <p className="font-heading text-lg mb-1">Sleep foto&apos;s hierheen</p>
           <p className="text-sm text-brand-taupe">Of klik om bestanden te selecteren</p>
           <p className="text-xs text-brand-taupe mt-2">JPG, PNG, WebP of HEIC</p>
+        </div>
+
+        <div className="mt-8 p-4 bg-white rounded-lg border border-brand-cream">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-brand-taupe">
+                Foto-URL gezondheidscheck
+              </p>
+              <p className="text-xs text-brand-taupe mt-1">
+                Scant alle producten in de Google Sheet en toont welke foto-URLs
+                kapot zijn (404/timeout). Re-upload daarna alleen die foto&apos;s.
+              </p>
+            </div>
+            <button
+              onClick={runPhotoCheck}
+              disabled={checkLoading}
+              className="btn-primary text-xs disabled:opacity-50"
+            >
+              {checkLoading ? "Bezig met checken..." : "Check alle foto-URLs"}
+            </button>
+          </div>
+
+          {checkError && (
+            <p className="text-xs text-red-500 mt-2">{checkError}</p>
+          )}
+
+          {checkResult && (
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+                <div className="p-3 bg-brand-light rounded">
+                  <p className="text-brand-taupe">Totaal</p>
+                  <p className="text-lg font-bold">{checkResult.summary.total}</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded">
+                  <p className="text-green-700">Werkt</p>
+                  <p className="text-lg font-bold text-green-700">
+                    {checkResult.summary.ok}
+                  </p>
+                </div>
+                <div className="p-3 bg-red-50 rounded">
+                  <p className="text-red-700">Kapot</p>
+                  <p className="text-lg font-bold text-red-700">
+                    {checkResult.summary.broken}
+                  </p>
+                </div>
+                <div className="p-3 bg-orange-50 rounded">
+                  <p className="text-orange-700">Geen URL</p>
+                  <p className="text-lg font-bold text-orange-700">
+                    {checkResult.summary.missing}
+                  </p>
+                </div>
+              </div>
+
+              {checkResult.broken.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-red-700 mb-2">
+                    Kapotte foto-URLs ({checkResult.broken.length})
+                  </h3>
+                  <div className="space-y-1 max-h-72 overflow-y-auto pr-2">
+                    {checkResult.broken.map((b) => (
+                      <div
+                        key={`${b.barcode}-broken`}
+                        className="flex items-center gap-3 p-2 bg-red-50 rounded text-xs"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{b.naam}</p>
+                          <p className="text-brand-taupe truncate">
+                            {b.categorie} · {b.barcode}
+                            {b.httpStatus ? ` · HTTP ${b.httpStatus}` : ""}
+                            {b.error ? ` · ${b.error}` : ""}
+                          </p>
+                        </div>
+                        <a
+                          href={b.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-brand-gold hover:underline whitespace-nowrap"
+                        >
+                          open
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {checkResult.missing.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-orange-700 mb-2">
+                    Producten zonder foto-URL ({checkResult.missing.length})
+                  </h3>
+                  <div className="space-y-1 max-h-48 overflow-y-auto pr-2">
+                    {checkResult.missing.map((m) => (
+                      <div
+                        key={`${m.barcode}-missing`}
+                        className="flex items-center gap-3 p-2 bg-orange-50 rounded text-xs"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{m.naam}</p>
+                          <p className="text-brand-taupe truncate">
+                            {m.categorie} · {m.barcode}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {checkResult.summary.broken === 0 &&
+                checkResult.summary.missing === 0 && (
+                  <p className="text-sm text-green-700 font-medium">
+                    Alle foto-URLs werken!
+                  </p>
+                )}
+            </div>
+          )}
         </div>
 
         {uploads.length > 0 && (

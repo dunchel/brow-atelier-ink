@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
@@ -15,16 +15,53 @@ interface LabelProduct {
 
 type PrintMode = "single" | "stock";
 type StickerLayout = "single" | "double" | "grid";
+type LabelStyle = "full" | "compact";
 
-const PRINT_LABEL_WIDTH_MM = 62;
-const PRINT_LABEL_HEIGHT_MM = 100;
-const PRINT_QR_SIZE_PX = 86;
+interface LayoutConfig {
+  singleWidth: number;
+  singleHeight: number;
+  doubleWidth: number;
+  doubleHeight: number;
+  gridWidth: number;
+  gridHeight: number;
+  gridCols: number;
+  gridRows: number;
+  qrPx: number;
+}
 
-const GRID_STICKER_WIDTH_MM = 102;
-const GRID_STICKER_HEIGHT_MM = 150;
-const GRID_COLS = 2;
-const GRID_ROWS = 5;
-const GRID_LABELS_PER_STICKER = GRID_COLS * GRID_ROWS;
+const LAYOUT: Record<LabelStyle, LayoutConfig> = {
+  full: {
+    singleWidth: 62,
+    singleHeight: 100,
+    doubleWidth: 62,
+    doubleHeight: 100,
+    gridWidth: 102,
+    gridHeight: 150,
+    gridCols: 2,
+    gridRows: 5,
+    qrPx: 86,
+  },
+  compact: {
+    singleWidth: 62,
+    singleHeight: 38,
+    doubleWidth: 62,
+    doubleHeight: 72,
+    gridWidth: 102,
+    gridHeight: 144,
+    gridCols: 4,
+    gridRows: 6,
+    qrPx: 70,
+  },
+};
+
+const JEWELRY_CATEGORIES = new Set([
+  "kettingen",
+  "armbanden",
+  "oorbellen",
+  "ringen",
+  "enkelbandjes",
+  "sieraden",
+]);
 
 export default function LabelsPage() {
   const [products, setProducts] = useState<LabelProduct[]>([]);
@@ -32,19 +69,8 @@ export default function LabelsPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("alle");
   const [printMode, setPrintMode] = useState<PrintMode | null>(null);
-  const [stickerLayout, setStickerLayout] = useState<StickerLayout>("double");
-
-  const labelsPerSticker =
-    stickerLayout === "single"
-      ? 1
-      : stickerLayout === "double"
-      ? 2
-      : GRID_LABELS_PER_STICKER;
-
-  const stickerWidthMm =
-    stickerLayout === "grid" ? GRID_STICKER_WIDTH_MM : PRINT_LABEL_WIDTH_MM;
-  const stickerHeightMm =
-    stickerLayout === "grid" ? GRID_STICKER_HEIGHT_MM : PRINT_LABEL_HEIGHT_MM;
+  const [stickerLayout, setStickerLayout] = useState<StickerLayout>("grid");
+  const [labelStyle, setLabelStyle] = useState<LabelStyle>("compact");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const printRef = useRef<HTMLDivElement>(null);
@@ -59,6 +85,29 @@ export default function LabelsPage() {
       .catch(() => setError("Kan geen verbinding maken"))
       .finally(() => setLoading(false));
   }, []);
+
+  const cfg = LAYOUT[labelStyle];
+  const gridLabelsPerSticker = cfg.gridCols * cfg.gridRows;
+
+  const labelsPerSticker =
+    stickerLayout === "single"
+      ? 1
+      : stickerLayout === "double"
+      ? 2
+      : gridLabelsPerSticker;
+
+  const stickerWidthMm =
+    stickerLayout === "single"
+      ? cfg.singleWidth
+      : stickerLayout === "double"
+      ? cfg.doubleWidth
+      : cfg.gridWidth;
+  const stickerHeightMm =
+    stickerLayout === "single"
+      ? cfg.singleHeight
+      : stickerLayout === "double"
+      ? cfg.doubleHeight
+      : cfg.gridHeight;
 
   const categories = Array.from(new Set(products.map((p) => p.categorie)));
 
@@ -94,7 +143,10 @@ export default function LabelsPage() {
     });
   };
 
-  const selectedProducts = products.filter((p) => selected.has(p.barcode));
+  const selectedProducts = useMemo(
+    () => products.filter((p) => selected.has(p.barcode)),
+    [products, selected]
+  );
 
   const parseStockCount = useCallback((voorraadRaw: string) => {
     const match = voorraadRaw.replace(",", ".").match(/-?\d+(\.\d+)?/);
@@ -118,11 +170,19 @@ export default function LabelsPage() {
   const totalLabelsToPrint = selectedPrintItems.length;
   const totalStickersToPrint = Math.ceil(totalLabelsToPrint / labelsPerSticker);
 
-  const renderQrSvg = useCallback((value: string) => {
-    return renderToStaticMarkup(
-      createElement(QRCodeSVG, { value, size: PRINT_QR_SIZE_PX, level: "M" })
+  const allSelectedAreJewelry =
+    selectedProducts.length > 0 &&
+    selectedProducts.every((p) =>
+      JEWELRY_CATEGORIES.has((p.categorie || "").toLowerCase().trim())
     );
-  }, []);
+
+  const renderQrSvg = useCallback(
+    (value: string) =>
+      renderToStaticMarkup(
+        createElement(QRCodeSVG, { value, size: cfg.qrPx, level: "M" })
+      ),
+    [cfg.qrPx]
+  );
 
   const escapeHtml = (s: string) =>
     s
@@ -142,22 +202,31 @@ export default function LabelsPage() {
       return acc;
     }, []);
 
-    const labelsHTML = stickers
-      .map((sticker) => {
-        const labelsMarkup = sticker
-          .map(
-            (p) => `
+    const renderLabel = (p: LabelProduct) => {
+      const qr = renderQrSvg(p.barcode);
+      if (labelStyle === "compact") {
+        return `
         <div class="label-item">
-          <div class="qr-container">${renderQrSvg(p.barcode)}</div>
+          <div class="qr-container">${qr}</div>
+          <div class="info">
+            <div class="code">${escapeHtml(p.barcode)}</div>
+          </div>
+        </div>`;
+      }
+      return `
+        <div class="label-item">
+          <div class="qr-container">${qr}</div>
           <div class="info">
             <div class="naam">${escapeHtml(p.naam)}</div>
             <div class="prijs">&euro;${escapeHtml(p.prijs)}</div>
             <div class="code">${escapeHtml(p.barcode)}</div>
           </div>
-        </div>`
-          )
-          .join("");
+        </div>`;
+    };
 
+    const labelsHTML = stickers
+      .map((sticker) => {
+        const labelsMarkup = sticker.map(renderLabel).join("");
         const missing = labelsPerSticker - sticker.length;
         const placeholders =
           missing > 0
@@ -165,9 +234,8 @@ export default function LabelsPage() {
                 .map(() => '<div class="label-item placeholder"></div>')
                 .join("")
             : "";
-
         return `
-      <div class="sticker ${stickerLayout}">
+      <div class="sticker ${stickerLayout} style-${labelStyle}">
         ${labelsMarkup}
         ${placeholders}
       </div>`;
@@ -196,7 +264,7 @@ export default function LabelsPage() {
       flex-direction: column;
       align-items: stretch;
       gap: 2mm;
-      padding: 4mm 3mm;
+      padding: 3mm;
       width: ${stickerWidthMm}mm;
       height: ${stickerHeightMm}mm;
       page-break-inside: avoid;
@@ -204,7 +272,6 @@ export default function LabelsPage() {
       page-break-after: always;
       break-after: page;
     }
-
     .sticker:last-child {
       page-break-after: auto;
       break-after: auto;
@@ -212,8 +279,8 @@ export default function LabelsPage() {
 
     .sticker.grid {
       display: grid;
-      grid-template-columns: repeat(${GRID_COLS}, 1fr);
-      grid-template-rows: repeat(${GRID_ROWS}, 1fr);
+      grid-template-columns: repeat(${cfg.gridCols}, 1fr);
+      grid-template-rows: repeat(${cfg.gridRows}, 1fr);
       gap: 1.5mm;
       padding: 3mm;
     }
@@ -222,67 +289,12 @@ export default function LabelsPage() {
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
-      gap: 1.8mm;
+      justify-content: center;
+      gap: 1.2mm;
       height: 100%;
       min-height: 0;
     }
-
-    .sticker.double .label-item {
-      height: calc((100% - 2mm) / 2);
-      border-bottom: 1px dashed #d7d7d7;
-      padding-bottom: 1mm;
-    }
-
-    .sticker.double .label-item:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-
-    .label-item.placeholder {
-      visibility: hidden;
-    }
-
-    .sticker.double .qr-container { width: 17mm; height: 17mm; }
-    .sticker.double .naam {
-      font-size: 10px;
-      -webkit-line-clamp: 2;
-      max-height: 24px;
-    }
-    .sticker.double .prijs { font-size: 13px; margin-top: 0.7mm; }
-    .sticker.double .code { font-size: 9px; margin-top: 0.6mm; }
-
-    .sticker.grid .label-item {
-      flex-direction: row;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 1.5mm;
-      padding: 1mm;
-      border: 1px dashed #c0c0c0;
-      border-radius: 1mm;
-      height: 100%;
-      overflow: hidden;
-    }
-    .sticker.grid .qr-container {
-      width: 18mm;
-      height: 18mm;
-    }
-    .sticker.grid .info {
-      width: auto;
-      flex: 1;
-      text-align: left;
-      align-items: flex-start;
-    }
-    .sticker.grid .naam {
-      font-size: 8px;
-      line-height: 1.1;
-      -webkit-line-clamp: 2;
-      max-height: 18px;
-      margin-top: 0;
-      text-align: left;
-    }
-    .sticker.grid .prijs { font-size: 11px; margin-top: 0.5mm; }
-    .sticker.grid .code { font-size: 7px; margin-top: 0.4mm; }
+    .label-item.placeholder { visibility: hidden; }
 
     .qr-container {
       flex-shrink: 0;
@@ -292,7 +304,7 @@ export default function LabelsPage() {
       align-items: center;
       justify-content: center;
     }
-    .qr-container svg { display: block; }
+    .qr-container svg { display: block; width: 100%; height: 100%; }
 
     .info {
       width: 100%;
@@ -324,12 +336,74 @@ export default function LabelsPage() {
     .code {
       width: 100%;
       font-size: 10px;
-      color: #666;
+      color: #444;
       margin-top: 1.2mm;
       letter-spacing: 0.2px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    /* === SINGLE layout overrides === */
+    .sticker.single.style-compact .qr-container { width: 22mm; height: 22mm; }
+    .sticker.single.style-compact .code { font-size: 11px; font-weight: 600; color: #111; }
+
+    /* === DOUBLE layout: 2 labels stacked === */
+    .sticker.double .label-item {
+      height: calc((100% - 2mm) / 2);
+      border-bottom: 1px dashed #d7d7d7;
+      padding-bottom: 1mm;
+    }
+    .sticker.double .label-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .sticker.double.style-full .qr-container { width: 17mm; height: 17mm; }
+    .sticker.double.style-full .naam { font-size: 10px; -webkit-line-clamp: 2; max-height: 24px; }
+    .sticker.double.style-full .prijs { font-size: 13px; margin-top: 0.7mm; }
+    .sticker.double.style-full .code { font-size: 9px; margin-top: 0.6mm; }
+
+    .sticker.double.style-compact .qr-container { width: 20mm; height: 20mm; }
+    .sticker.double.style-compact .code { font-size: 10px; font-weight: 600; color: #111; }
+
+    /* === GRID layout === */
+    .sticker.grid .label-item {
+      padding: 1mm;
+      border: 1px dashed #c0c0c0;
+      border-radius: 1mm;
+      overflow: hidden;
+    }
+    .sticker.grid.style-full .label-item {
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 1.5mm;
+    }
+    .sticker.grid.style-full .qr-container { width: 18mm; height: 18mm; }
+    .sticker.grid.style-full .info {
+      width: auto; flex: 1; text-align: left; align-items: flex-start;
+    }
+    .sticker.grid.style-full .naam {
+      font-size: 8px; line-height: 1.1; -webkit-line-clamp: 2;
+      max-height: 18px; margin-top: 0; text-align: left;
+    }
+    .sticker.grid.style-full .prijs { font-size: 11px; margin-top: 0.5mm; }
+    .sticker.grid.style-full .code { font-size: 7px; margin-top: 0.4mm; }
+
+    /* Compact grid: square cells with only QR + code */
+    .sticker.grid.style-compact .label-item {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.8mm;
+    }
+    .sticker.grid.style-compact .qr-container { width: 15mm; height: 15mm; }
+    .sticker.grid.style-compact .code {
+      font-size: 7px;
+      font-weight: 600;
+      color: #111;
+      margin-top: 0.3mm;
+      text-align: center;
     }
 
     @media print {
@@ -427,10 +501,9 @@ export default function LabelsPage() {
         <h1 className="font-heading text-3xl mb-2">Product Labels</h1>
         <p className="text-brand-taupe mb-6">
           Printer: <strong>Brother QL-1100C</strong>. Kies hieronder hoeveel
-          labels per product (1 of voorraad) en welke indeling op de sticker.
-          Voor de <strong>brede rol DK-22243 (102 mm)</strong> kun je{" "}
-          {GRID_LABELS_PER_STICKER} labels op één vel printen en zelf
-          uitknippen.
+          labels per product (1 of voorraad), de stijl (volledig of compact
+          met alleen QR + code) en de indeling (62 mm rol of brede{" "}
+          <strong>DK-22243 (102 mm)</strong> rol met meerdere labels per vel).
         </p>
 
         {/* Filters */}
@@ -458,6 +531,7 @@ export default function LabelsPage() {
           </div>
         </div>
 
+        {/* Aantal labels */}
         <div className="bg-white rounded-lg border border-brand-cream p-4 mb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <p className="text-xs uppercase tracking-widest text-brand-taupe">Aantal labels</p>
@@ -490,6 +564,56 @@ export default function LabelsPage() {
             </p>
           )}
         </div>
+
+        {/* Label stijl */}
+        <div className="bg-white rounded-lg border border-brand-cream p-4 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-xs uppercase tracking-widest text-brand-taupe">Label stijl</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setLabelStyle("full")}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors whitespace-nowrap ${
+                  labelStyle === "full"
+                    ? "bg-brand-dark text-white border-brand-dark"
+                    : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
+                }`}
+              >
+                Volledig (QR + naam + prijs + code)
+              </button>
+              <button
+                onClick={() => setLabelStyle("compact")}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors whitespace-nowrap ${
+                  labelStyle === "compact"
+                    ? "bg-brand-dark text-white border-brand-dark"
+                    : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
+                }`}
+              >
+                Compact (alleen QR + code)
+              </button>
+            </div>
+          </div>
+          {labelStyle === "compact" && (
+            <p className="text-xs text-brand-taupe mt-3">
+              Compact: kleine vierkante labels met alleen QR + de leesbare code.
+              Ideaal voor <strong>sieraden</strong> waarbij naam/prijs niet op
+              het label hoeft.
+            </p>
+          )}
+          {labelStyle === "full" && allSelectedAreJewelry && selected.size > 0 && (
+            <p className="text-xs text-orange-600 mt-3">
+              Tip: je hebt alleen sieraden geselecteerd. Overweeg{" "}
+              <button
+                onClick={() => setLabelStyle("compact")}
+                className="underline font-semibold"
+              >
+                Compact
+              </button>{" "}
+              voor kleinere vierkante labels.
+            </p>
+          )}
+        </div>
+
+        {/* Indeling sticker */}
         <div className="bg-white rounded-lg border border-brand-cream p-4 mb-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <p className="text-xs uppercase tracking-widest text-brand-taupe">Indeling sticker</p>
@@ -522,16 +646,16 @@ export default function LabelsPage() {
                     : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
                 }`}
               >
-                Brede rol (102mm) — {GRID_LABELS_PER_STICKER} per vel
+                Brede rol (102mm) — {gridLabelsPerSticker} per vel
               </button>
             </div>
           </div>
           {stickerLayout === "grid" && (
             <p className="text-xs text-brand-taupe mt-3">
               Voor de brede rol <strong>DK-22243 (102 mm)</strong>. Er passen{" "}
-              <strong>{GRID_LABELS_PER_STICKER}</strong> labels op één vel
-              ({GRID_COLS} kolommen × {GRID_ROWS} rijen). Snijlijnen worden
-              meegeprint zodat je ze met de hand kunt uitknippen.
+              <strong>{gridLabelsPerSticker}</strong> labels op één vel
+              ({cfg.gridCols} × {cfg.gridRows}). Snijlijnen worden meegeprint
+              zodat je ze met de hand kunt uitknippen.
             </p>
           )}
         </div>
@@ -562,7 +686,8 @@ export default function LabelsPage() {
         <div className="mb-4">
           <span className="text-xs text-brand-taupe">
             Totaal labels: <strong>{totalLabelsToPrint}</strong> • Stickers:{" "}
-            <strong>{totalStickersToPrint}</strong>
+            <strong>{totalStickersToPrint}</strong> • Stijl:{" "}
+            <strong>{labelStyle === "compact" ? "compact" : "volledig"}</strong>
           </span>
         </div>
 
@@ -633,35 +758,49 @@ export default function LabelsPage() {
             <h2 className="font-heading text-xl mb-4">
               Preview ({selectedPrintItems.length} labels)
             </h2>
-            <div ref={printRef} className="space-y-3">
-              {selectedPrintItems.slice(0, 5).map((p, idx) => (
+            <div ref={printRef} className="flex flex-wrap gap-3">
+              {selectedPrintItems.slice(0, 8).map((p, idx) => (
                 <div
                   key={`${p.barcode}-${idx}`}
-                  className="flex flex-col items-center gap-2 p-3 bg-brand-light rounded border border-brand-cream"
-                  style={{ maxWidth: `${PRINT_LABEL_WIDTH_MM}mm`, minHeight: `${PRINT_LABEL_HEIGHT_MM}mm` }}
+                  className={`flex flex-col items-center justify-center gap-2 p-3 bg-brand-light rounded border border-brand-cream`}
+                  style={{
+                    width: labelStyle === "compact" ? "26mm" : `${cfg.singleWidth}mm`,
+                    height: labelStyle === "compact" ? "26mm" : "auto",
+                    minHeight: labelStyle === "compact" ? "26mm" : `${cfg.singleHeight}mm`,
+                  }}
                 >
-                  <QRCodeSVG value={p.barcode} size={86} level="M" />
-                  <div className="min-w-0 w-full text-center">
-                    <p
-                      className="text-xs font-bold leading-tight break-words overflow-hidden"
-                      style={{
-                        display: "-webkit-box",
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: "vertical",
-                      }}
-                    >
-                      {p.naam}
+                  <QRCodeSVG
+                    value={p.barcode}
+                    size={labelStyle === "compact" ? 56 : 80}
+                    level="M"
+                  />
+                  {labelStyle === "compact" ? (
+                    <p className="text-[10px] font-semibold text-gray-800 truncate w-full text-center">
+                      {p.barcode}
                     </p>
-                    <p className="text-lg font-bold mt-1 leading-none">
-                      &euro;{p.prijs}
-                    </p>
-                    <p className="text-[10px] text-gray-500 mt-1 truncate">{p.barcode}</p>
-                  </div>
+                  ) : (
+                    <div className="min-w-0 w-full text-center">
+                      <p
+                        className="text-xs font-bold leading-tight break-words overflow-hidden"
+                        style={{
+                          display: "-webkit-box",
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: "vertical",
+                        }}
+                      >
+                        {p.naam}
+                      </p>
+                      <p className="text-lg font-bold mt-1 leading-none">
+                        &euro;{p.prijs}
+                      </p>
+                      <p className="text-[10px] text-gray-500 mt-1 truncate">{p.barcode}</p>
+                    </div>
+                  )}
                 </div>
               ))}
-              {selectedPrintItems.length > 5 && (
-                <p className="text-xs text-brand-taupe">
-                  + {selectedPrintItems.length - 5} meer...
+              {selectedPrintItems.length > 8 && (
+                <p className="text-xs text-brand-taupe self-center">
+                  + {selectedPrintItems.length - 8} meer...
                 </p>
               )}
             </div>
@@ -672,8 +811,8 @@ export default function LabelsPage() {
                 Papier: <strong>{stickerWidthMm} x {stickerHeightMm} mm</strong>{" "}
                 {stickerLayout === "grid" ? (
                   <>
-                    (kies een <strong>102 mm</strong> formaat dat dichtbij{" "}
-                    {GRID_STICKER_HEIGHT_MM} mm zit, of <strong>102 mm continuous</strong>)
+                    (kies een <strong>102 mm</strong> formaat dichtbij{" "}
+                    {cfg.gridHeight} mm, of <strong>102 mm continuous</strong>)
                   </>
                 ) : (
                   <>(of dichtstbijzijnde 62 mm breed profiel)</>
@@ -683,8 +822,8 @@ export default function LabelsPage() {
               </p>
               {stickerLayout === "grid" ? (
                 <p>
-                  <strong>Brede rol DK-22243:</strong> {GRID_LABELS_PER_STICKER}{" "}
-                  labels per vel ({GRID_COLS} × {GRID_ROWS}) met dunne
+                  <strong>Brede rol DK-22243:</strong> {gridLabelsPerSticker}{" "}
+                  labels per vel ({cfg.gridCols} × {cfg.gridRows}) met dunne
                   snijlijnen. Knip met de hand uit. Zet{" "}
                   <strong>Auto cut = on</strong> zodat ieder vel netjes
                   afgesneden wordt.
@@ -696,12 +835,18 @@ export default function LabelsPage() {
                   printpagina staat, snijdt de QL nu per label.
                 </p>
               )}
-              <p>
-                <strong>QR op het label:</strong> boven de QR, daaronder naam,
-                prijs en de barcode-tekst. De QR is dezelfde waarde als de
-                geprinte code (bijv. BA-KET-001); scan testen met de
-                iPhone-cameratoets.
-              </p>
+              {labelStyle === "compact" ? (
+                <p>
+                  <strong>Compact-stijl:</strong> alleen QR + barcode-tekst op
+                  een kleiner vierkant label. Scan met iPhone-camera om te
+                  testen.
+                </p>
+              ) : (
+                <p>
+                  <strong>QR op het label:</strong> boven de QR, daaronder
+                  naam, prijs en de barcode-tekst.
+                </p>
+              )}
             </div>
           </div>
         )}
