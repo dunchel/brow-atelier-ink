@@ -43,6 +43,17 @@ export default function AdminPage() {
           </Link>
 
           <Link
+            href="/shop/code"
+            className="block p-6 bg-white rounded-lg border border-brand-gold/40 hover:border-brand-gold transition-colors"
+          >
+            <h2 className="font-heading text-xl mb-1">Verkoop via telefoon</h2>
+            <p className="text-sm text-brand-taupe">
+              Productcode intikken, grote QR tonen voor POS-scan, korting
+              kiezen — ideaal op je telefoon in de winkel.
+            </p>
+          </Link>
+
+          <Link
             href="/admin/scan"
             className="block p-6 bg-white rounded-lg border border-brand-cream hover:border-brand-gold transition-colors"
           >

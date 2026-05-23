@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getAllProducts } from "@/lib/products";
 import { ShopFilter } from "@/components/ShopFilter";
 
@@ -30,6 +31,12 @@ export default async function ShopPage() {
             Shop de mooiste statement pieces en beauty producten. Binnenlopen
             kan altijd zonder afspraak!
           </p>
+          <Link
+            href="/shop/code"
+            className="inline-block mt-4 text-xs uppercase tracking-widest text-brand-gold hover:text-brand-dark transition-colors"
+          >
+            Verkoop via telefoon (code + QR) &rarr;
+          </Link>
         </div>
       </section>
 
