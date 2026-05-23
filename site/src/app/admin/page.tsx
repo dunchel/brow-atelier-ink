@@ -43,6 +43,17 @@ export default function AdminPage() {
           </Link>
 
           <Link
+            href="/admin/processen"
+            className="block p-6 bg-white rounded-lg border border-brand-cream hover:border-brand-gold transition-colors"
+          >
+            <h2 className="font-heading text-xl mb-1">Verkoop &amp; Retour</h2>
+            <p className="text-sm text-brand-taupe">
+              Stap-voor-stap handleiding: wat te doen bij verkoop en retour in
+              winkel en webshop.
+            </p>
+          </Link>
+
+          <Link
             href="/admin/zendingen"
             className="block p-6 bg-white rounded-lg border border-brand-cream hover:border-brand-gold transition-colors"
           >
