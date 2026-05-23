@@ -91,6 +91,7 @@ export default function LabelsPage() {
   const [labelStyle, setLabelStyle] = useState<LabelStyle>("compact");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -230,9 +231,13 @@ export default function LabelsPage() {
     );
 
   const renderQrSvg = useCallback(
-    (value: string) =>
+    (barcode: string) =>
       renderToStaticMarkup(
-        createElement(QRCodeSVG, { value, size: cfg.qrPx, level: "M" })
+        createElement(QRCodeSVG, {
+          value: barcode,
+          size: cfg.qrPx,
+          level: "M",
+        })
       ),
     [cfg.qrPx]
   );
@@ -300,16 +305,25 @@ export default function LabelsPage() {
     window.setTimeout(cleanup, 120_000);
   };
 
-  const renderQrSvgSized = (value: string, size: number) =>
+  const renderQrSvgSized = (barcode: string, size: number) =>
     renderToStaticMarkup(
-      createElement(QRCodeSVG, { value, size, level: "M" })
+      createElement(QRCodeSVG, {
+        value: barcode,
+        size,
+        level: "M",
+      })
     );
 
-  const handlePrintA4 = (productsOverride?: LabelProduct[]) => {
+  const handlePrintA4 = (
+    productsOverride?: LabelProduct[],
+    previewOnly = false
+  ): string | null => {
     const prods = productsOverride ?? selectedProducts;
-    if (prods.length === 0) return;
+    if (prods.length === 0) return null;
 
-    const pages = prods.reduce<LabelProduct[][]>((acc, item, idx) => {
+    const items = previewOnly ? prods.slice(0, A4_ITEMS_PER_PAGE) : prods;
+
+    const pages = items.reduce<LabelProduct[][]>((acc, item, idx) => {
       const pageIdx = Math.floor(idx / A4_ITEMS_PER_PAGE);
       if (!acc[pageIdx]) acc[pageIdx] = [];
       acc[pageIdx].push(item);
@@ -429,22 +443,28 @@ export default function LabelsPage() {
 </body>
 </html>`;
 
-    printInIframe(fullHtml);
+    return fullHtml;
   };
 
-  const handlePrint = (productsOverride?: LabelProduct[]) => {
+  const handlePrint = (
+    productsOverride?: LabelProduct[],
+    previewOnly = false
+  ): string | null => {
     const prods = productsOverride ?? selectedProducts;
 
     if (printFormat === "a4") {
-      handlePrintA4(prods);
-      return;
+      return handlePrintA4(prods, previewOnly);
     }
-    if (!printMode || prods.length === 0) return;
+    if (!printMode || prods.length === 0) return null;
 
     const printItems = buildPrintItems(prods);
-    if (printItems.length === 0) return;
+    if (printItems.length === 0) return null;
 
-    const stickers = printItems.reduce<LabelProduct[][]>((acc, item, idx) => {
+    const limitedItems = previewOnly
+      ? printItems.slice(0, labelsPerSticker)
+      : printItems;
+
+    const stickers = limitedItems.reduce<LabelProduct[][]>((acc, item, idx) => {
       const pageIdx = Math.floor(idx / labelsPerSticker);
       if (!acc[pageIdx]) acc[pageIdx] = [];
       acc[pageIdx].push(item);
@@ -458,6 +478,7 @@ export default function LabelsPage() {
         <div class="label-item">
           <div class="qr-container">${qr}</div>
           <div class="info">
+            <div class="prijs">&euro;${escapeHtml(p.prijs)}</div>
             <div class="code">${escapeHtml(p.barcode)}</div>
           </div>
         </div>`;
@@ -596,8 +617,10 @@ export default function LabelsPage() {
     /* === SINGLE layout overrides === */
     .sticker.single.style-compact .qr-container { width: 22mm; height: 22mm; }
     .sticker.single.style-compact .code { font-size: 11px; font-weight: 600; color: #111; }
+    .sticker.single.style-compact .prijs { font-size: 12px; font-weight: 700; margin-top: 0; }
     .sticker.single.style-mini .qr-container { width: 18mm; height: 18mm; }
     .sticker.single.style-mini .code { font-size: 10px; font-weight: 600; color: #111; }
+    .sticker.single.style-mini .prijs { font-size: 11px; font-weight: 700; margin-top: 0; }
 
     /* === DOUBLE layout: 2 labels stacked === */
     .sticker.double .label-item {
@@ -616,8 +639,10 @@ export default function LabelsPage() {
 
     .sticker.double.style-compact .qr-container { width: 20mm; height: 20mm; }
     .sticker.double.style-compact .code { font-size: 10px; font-weight: 600; color: #111; }
+    .sticker.double.style-compact .prijs { font-size: 11px; font-weight: 700; margin-top: 0; }
     .sticker.double.style-mini .qr-container { width: 16mm; height: 16mm; }
     .sticker.double.style-mini .code { font-size: 9px; font-weight: 600; color: #111; }
+    .sticker.double.style-mini .prijs { font-size: 10px; font-weight: 700; margin-top: 0; }
 
     /* === GRID layout === */
     .sticker.grid .label-item {
@@ -658,6 +683,12 @@ export default function LabelsPage() {
       margin-top: 0.3mm;
       text-align: center;
     }
+    .sticker.grid.style-compact .prijs {
+      font-size: 8px;
+      font-weight: 700;
+      margin-top: 0.2mm;
+      text-align: center;
+    }
 
     /* Mini grid: smallest square cells */
     .sticker.grid.style-mini .label-item {
@@ -673,6 +704,12 @@ export default function LabelsPage() {
       font-weight: 600;
       color: #111;
       margin-top: 0.2mm;
+      text-align: center;
+    }
+    .sticker.grid.style-mini .prijs {
+      font-size: 7px;
+      font-weight: 700;
+      margin-top: 0.1mm;
       text-align: center;
     }
 
@@ -691,7 +728,17 @@ export default function LabelsPage() {
 </body>
 </html>`;
 
-    printInIframe(fullHtml);
+    return fullHtml;
+  };
+
+  const runPrint = (productsOverride?: LabelProduct[]) => {
+    const html = handlePrint(productsOverride, false);
+    if (html) printInIframe(html);
+  };
+
+  const openPreview = (productsOverride?: LabelProduct[]) => {
+    const html = handlePrint(productsOverride, true);
+    if (html) setPreviewHtml(html);
   };
 
   const labelStyleLabel =
@@ -706,7 +753,7 @@ export default function LabelsPage() {
     const catProducts = products.filter((p) => p.categorie === cat);
     if (!canPrintProducts(catProducts)) return;
     selectOnlyCategory(cat);
-    handlePrint(catProducts);
+    runPrint(catProducts);
   };
 
   if (loading) {
@@ -920,7 +967,7 @@ export default function LabelsPage() {
                     : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
                 }`}
               >
-                Compact (QR + code)
+                Compact (QR + prijs + code)
               </button>
               <button
                 onClick={() => setLabelStyle("mini")}
@@ -930,7 +977,7 @@ export default function LabelsPage() {
                     : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
                 }`}
               >
-                Mini (kleiner, QR + code)
+                Mini (kleiner + prijs)
               </button>
             </div>
           </div>
@@ -944,8 +991,8 @@ export default function LabelsPage() {
                 </>
               ) : (
                 <>
-                  <strong>Compact:</strong> kleine vierkante labels met alleen QR +
-                  code. Ideaal voor sieraden.
+                  <strong>Compact:</strong> kleine vierkante labels met QR, prijs
+                  en barcode. Ideaal voor sieraden.
                 </>
               )}
             </p>
@@ -1036,15 +1083,24 @@ export default function LabelsPage() {
               {selected.size} producten geselecteerd
             </span>
           </div>
-          <button
-            onClick={() => handlePrint()}
-            disabled={printFormat === "a4" ? !canPrintA4 : !canPrintLabels}
-            className="btn-primary text-xs disabled:opacity-40"
-          >
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openPreview()}
+              disabled={printFormat === "a4" ? !canPrintA4 : !canPrintLabels}
+              className="px-4 py-2 text-xs rounded border border-brand-cream bg-white text-brand-taupe hover:border-brand-gold transition-colors disabled:opacity-40"
+            >
+              Voorbeeld
+            </button>
+            <button
+              onClick={() => runPrint()}
+              disabled={printFormat === "a4" ? !canPrintA4 : !canPrintLabels}
+              className="btn-primary text-xs disabled:opacity-40"
+            >
             {printFormat === "a4"
               ? `Print A4 boekje (${selected.size} product${selected.size !== 1 ? "en" : ""})`
               : `Print ${totalLabelsToPrint} label${totalLabelsToPrint !== 1 ? "s" : ""}`}
-          </button>
+            </button>
+          </div>
         </div>
         <div className="mb-4">
           <span className="text-xs text-brand-taupe">
@@ -1154,6 +1210,7 @@ export default function LabelsPage() {
                       {p.naam}
                     </p>
                     <QRCodeSVG value={p.barcode} size={64} level="M" />
+                    <p className="text-sm font-bold text-brand-gold">&euro;{p.prijs}</p>
                     <p className="text-[10px] text-gray-500 truncate w-full">{p.barcode}</p>
                   </div>
                 ))
@@ -1189,9 +1246,14 @@ export default function LabelsPage() {
                     level="M"
                   />
                   {labelStyle === "compact" || labelStyle === "mini" ? (
-                    <p className="text-[10px] font-semibold text-gray-800 truncate w-full text-center">
-                      {p.barcode}
-                    </p>
+                    <div className="w-full text-center">
+                      <p className="text-xs font-bold text-brand-gold leading-none">
+                        &euro;{p.prijs}
+                      </p>
+                      <p className="text-[10px] font-semibold text-gray-800 truncate w-full mt-1">
+                        {p.barcode}
+                      </p>
+                    </div>
                   ) : (
                     <div className="min-w-0 w-full text-center">
                       <p
@@ -1273,13 +1335,13 @@ export default function LabelsPage() {
               {labelStyle === "compact" || labelStyle === "mini" ? (
                 <p>
                   <strong>{labelStyle === "mini" ? "Mini" : "Compact"}-stijl:</strong>{" "}
-                  alleen QR + barcode-tekst op een klein vierkant label. Scan met
-                  iPhone-camera om te testen.
+                  QR met productcode (bijv. BA-001), prijs en barcode-tekst.
+                  Scan in Shopify POS om te verkopen.
                 </p>
               ) : (
                 <p>
-                  <strong>QR op het label:</strong> boven de QR, daaronder
-                  naam, prijs en de barcode-tekst.
+                  <strong>QR op het label:</strong> bevat de productcode voor
+                  Shopify POS. Naam, prijs en barcode staan op het label.
                 </p>
               )}
                 </>
@@ -1288,6 +1350,48 @@ export default function LabelsPage() {
           </div>
         )}
       </div>
+
+      {previewHtml && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-brand-cream">
+              <h2 className="font-heading text-lg">Print voorbeeld</h2>
+              <button
+                onClick={() => setPreviewHtml(null)}
+                className="text-brand-taupe hover:text-brand-dark text-xl leading-none px-2"
+                aria-label="Sluiten"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4 bg-brand-light">
+              <iframe
+                title="Print preview"
+                srcDoc={previewHtml}
+                className="w-full min-h-[400px] border border-brand-cream bg-white rounded"
+                style={{ height: "60vh" }}
+              />
+            </div>
+            <div className="p-4 border-t border-brand-cream flex gap-3 justify-end">
+              <button
+                onClick={() => setPreviewHtml(null)}
+                className="px-4 py-2 text-xs rounded border border-brand-cream"
+              >
+                Sluiten
+              </button>
+              <button
+                onClick={() => {
+                  printInIframe(previewHtml);
+                  setPreviewHtml(null);
+                }}
+                className="btn-primary text-xs"
+              >
+                Printen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -43,6 +43,17 @@ export default function AdminPage() {
           </Link>
 
           <Link
+            href="/admin/scan"
+            className="block p-6 bg-white rounded-lg border border-brand-cream hover:border-brand-gold transition-colors"
+          >
+            <h2 className="font-heading text-xl mb-1">Scan &amp; Voorraad</h2>
+            <p className="text-sm text-brand-taupe">
+              Scan label-QR, bekijk voorraad en prijs, registreer verkoop of
+              retour — Google Sheet wordt automatisch bijgewerkt.
+            </p>
+          </Link>
+
+          <Link
             href="/admin/processen"
             className="block p-6 bg-white rounded-lg border border-brand-cream hover:border-brand-gold transition-colors"
           >

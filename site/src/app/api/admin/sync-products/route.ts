@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllProducts } from "@/lib/products";
+import { getAllInventoryProducts } from "@/lib/sheet-inventory";
 
 const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN!;
 const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN!;
@@ -30,6 +31,7 @@ async function createProduct(product: {
   images: string[];
   tags: string[];
   category: string;
+  barcode?: string;
 }) {
   const price = product.price.replace(",", ".");
   const compareAtPrice = product.compareAtPrice?.replace(",", ".") || undefined;
@@ -50,6 +52,9 @@ async function createProduct(product: {
         {
           price,
           ...(compareAtPrice ? { compare_at_price: compareAtPrice } : {}),
+          ...(product.barcode
+            ? { barcode: product.barcode, sku: product.barcode }
+            : {}),
           inventory_management: null,
           inventory_policy: "continue",
         },
@@ -70,6 +75,10 @@ export async function POST(req: NextRequest) {
     const { offset = 0, batchSize = 5 } = await req.json().catch(() => ({ offset: 0, batchSize: 5 }));
 
     const allProducts = await getAllProducts();
+    const inventory = await getAllInventoryProducts();
+    const barcodeByTitle = new Map(
+      inventory.map((p) => [p.naam.trim().toLowerCase(), p.barcode])
+    );
 
     if (allProducts.length === 0) {
       return NextResponse.json({ error: "Geen producten gevonden in de Sheet" }, { status: 400 });
@@ -90,7 +99,10 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        await createProduct(product);
+        await createProduct({
+          ...product,
+          barcode: barcodeByTitle.get(product.title.trim().toLowerCase()),
+        });
         results.push({ title: product.title, status: "created" });
         created++;
 

@@ -31,13 +31,13 @@ const PROCESSES: Process[] = [
       {
         title: "Product opzoeken",
         description:
-          "Scan de QR-code op het label met de iPhone-camera, of zoek op barcode/naam in de Google Sheet.",
-        tip: "QR op het label = de barcode (bijv. BA-KET-001).",
+          "Scan de QR-code op het label — opent Scan & Voorraad met naam, prijs en voorraad. Of zoek handmatig in de Google Sheet.",
+        tip: "QR op nieuwe labels linkt naar /admin/scan. Druk op Verkoop (−1) om voorraad direct bij te werken.",
       },
       {
         title: "Voorraad controleren",
         description:
-          "Check in de Google Sheet of het product op voorraad staat (kolom Voorraad). Geen voorraad = niet verkopen.",
+          "Op de scan-pagina zie je direct of er voorraad is. Geen voorraad = niet verkopen.",
       },
       {
         title: "Prijs doorgeven",
@@ -52,7 +52,7 @@ const PROCESSES: Process[] = [
       {
         title: "Voorraad bijwerken",
         description:
-          "Pas in de Google Sheet de voorraad aan: -1 per verkocht stuk. Dit is verplicht na elke verkoop.",
+          "Druk op Verkoop (−1) op de scan-pagina — de Google Sheet wordt automatisch bijgewerkt.",
         tip: "Doe dit direct na betaling, niet aan het eind van de dag.",
       },
       {
@@ -62,6 +62,7 @@ const PROCESSES: Process[] = [
       },
     ],
     links: [
+      { label: "Scan & Voorraad", href: "/admin/scan" },
       { label: "Labels printen", href: "/admin/labels" },
       { label: "Producten beheren", href: "/admin/producten" },
     ],
@@ -99,7 +100,7 @@ const PROCESSES: Process[] = [
       {
         title: "Voorraad bijwerken",
         description:
-          "Pas in de Google Sheet de voorraad aan per verkocht product (-1 per stuk).",
+          "Bij online betaling kan voorraad automatisch dalen via Shopify-webhook. Controleer in Scan & Voorraad of alles klopt.",
       },
       {
         title: "Klant informeren",
@@ -130,7 +131,7 @@ const PROCESSES: Process[] = [
       {
         title: "Product opzoeken",
         description:
-          "Scan QR-code of zoek product op barcode in de Google Sheet. Controleer oorspronkelijke prijs.",
+          "Scan QR-code (Scan & Voorraad) of zoek op barcode in de Google Sheet. Controleer oorspronkelijke prijs.",
       },
       {
         title: "Product inspecteren",
@@ -151,7 +152,7 @@ const PROCESSES: Process[] = [
       {
         title: "Voorraad bijwerken",
         description:
-          "Zet in de Google Sheet de voorraad terug: +1 per geretourneerd stuk.",
+          "Druk op Retour (+1) op de scan-pagina — voorraad gaat automatisch omhoog in de Google Sheet.",
       },
       {
         title: "Label & vitrine",
@@ -160,6 +161,7 @@ const PROCESSES: Process[] = [
       },
     ],
     links: [
+      { label: "Scan & Voorraad", href: "/admin/scan" },
       { label: "Labels printen", href: "/admin/labels" },
       {
         label: "Shopify refunds",
@@ -374,8 +376,8 @@ export default function ProcessenPage() {
           <p className="font-medium text-brand-dark mb-2">Belangrijk</p>
           <ul className="space-y-1 list-disc list-inside">
             <li>Google Sheet = bron van waarheid voor voorraad</li>
-            <li>Na elke verkoop of retour: voorraad direct bijwerken</li>
-            <li>QR-code op label scannen = snelste manier om product te vinden</li>
+            <li>Scan & Voorraad: scan QR, zie prijs/voorraad, verkoop of retour met één klik</li>
+            <li>Online verkoop: Shopify-webhook kan voorraad automatisch bijwerken</li>
             <li>Bij twijfel over retour: eerst overleggen, dan pas terugbetalen</li>
           </ul>
         </div>
