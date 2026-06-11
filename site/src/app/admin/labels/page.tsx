@@ -100,7 +100,9 @@ export default function LabelsPage() {
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const loadLabels = useCallback(() => {
+    setLoading(true);
+    setError("");
     fetch("/api/admin/labels", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
@@ -112,6 +114,10 @@ export default function LabelsPage() {
       .catch(() => setError("Kan geen verbinding maken"))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadLabels();
+  }, [loadLabels]);
 
   const cfg = LAYOUT[labelStyle];
   const gridLabelsPerSticker = cfg.gridCols * cfg.gridRows;
@@ -799,6 +805,14 @@ export default function LabelsPage() {
                 ? ""
                 : ` · filter: ${categoryFilter} (${filtered.length})`}
               {search ? ` · zoeken: "${search}" (${filtered.length})` : ""}
+              {" · "}
+              <button
+                type="button"
+                onClick={loadLabels}
+                className="underline text-brand-gold hover:text-brand-dark"
+              >
+                Ververs uit Sheet
+              </button>
             </span>
           )}
         </p>

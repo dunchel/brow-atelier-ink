@@ -1,6 +1,8 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const GOOGLE_CREDENTIALS_B64 = process.env.GOOGLE_CREDENTIALS_B64 || "";
 
@@ -56,16 +58,22 @@ export async function GET() {
       const rows = res.data.values as string[][] | undefined;
       if (!rows || rows.length < 2) continue;
 
-      const headers = rows[0].map((h) => h.trim().toLowerCase());
-      const get = (row: string[], key: string) => {
-        const idx = headers.indexOf(key);
-        return idx >= 0 ? (row[idx] || "").trim() : "";
+      const headers = rows[0].map((h) => h.trim().toLowerCase().replace(/\s+/g, ""));
+      const get = (row: string[], ...keys: string[]) => {
+        for (const key of keys) {
+          const idx = headers.indexOf(key.replace(/\s+/g, ""));
+          if (idx >= 0) {
+            const val = (row[idx] || "").trim();
+            if (val) return val;
+          }
+        }
+        return "";
       };
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        const naam = get(row, "naam") || get(row, "title") || get(row, "product");
-        const barcode = get(row, "barcode");
+        const naam = get(row, "naam", "title", "product");
+        const barcode = get(row, "barcode", "sku", "productcode", "ean", "artikelcode");
 
         if (!naam && !barcode) continue;
 
@@ -80,10 +88,10 @@ export async function GET() {
 
         allProducts.push({
           naam,
-          prijs: get(row, "prijs") || get(row, "price") || "",
+          prijs: get(row, "prijs", "price") || "",
           barcode,
           categorie: tabName,
-          voorraad: get(row, "voorraad") || get(row, "beschikbaar") || "",
+          voorraad: get(row, "voorraad", "beschikbaar", "stock") || "",
         });
       }
     }
@@ -94,15 +102,22 @@ export async function GET() {
       skippedByTab[s.tab][s.reason]++;
     }
 
-    return NextResponse.json({
-      products: allProducts,
-      meta: {
-        total: allProducts.length,
-        skippedCount: skipped.length,
-        skippedByTab,
-        skipped: skipped.slice(0, 30),
+    return NextResponse.json(
+      {
+        products: allProducts,
+        meta: {
+          total: allProducts.length,
+          skippedCount: skipped.length,
+          skippedByTab,
+          skipped: skipped.slice(0, 30),
+        },
       },
-    });
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      }
+    );
   } catch (err) {
     console.error("[Labels API]", err);
     return NextResponse.json({ error: "Kan producten niet laden" }, { status: 500 });
