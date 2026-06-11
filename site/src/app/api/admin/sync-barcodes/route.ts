@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllInventoryProducts } from "@/lib/sheet-inventory";
-
-const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN!;
-const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN!;
-
-async function shopifyRest(endpoint: string, method = "GET", body?: unknown) {
-  const res = await fetch(`https://${domain}/admin/api/2024-01/${endpoint}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": adminToken,
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
-}
+import { isRateLimitError, shopifyErrorMessage, shopifyRest } from "@/lib/shopify-admin";
 
 interface ShopifyProduct {
   id: number;
@@ -33,9 +19,9 @@ async function findProductExact(title: string): Promise<ShopifyProduct | null> {
 
 export async function POST(req: NextRequest) {
   try {
-    const { offset = 0, batchSize = 5 } = await req.json().catch(() => ({
+    const { offset = 0, batchSize = 2 } = await req.json().catch(() => ({
       offset: 0,
-      batchSize: 5,
+      batchSize: 2,
     }));
 
     const inventory = await getAllInventoryProducts();
@@ -54,6 +40,7 @@ export async function POST(req: NextRequest) {
     let skipped = 0;
     let failed = 0;
     let notFound = 0;
+    let rateLimited = 0;
 
     for (const item of batch) {
       try {
@@ -103,9 +90,8 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        if (data?.errors) {
-          throw new Error(JSON.stringify(data.errors));
-        }
+        const err = shopifyErrorMessage(data);
+        if (err) throw new Error(err);
 
         results.push({
           title: item.naam,
@@ -113,10 +99,9 @@ export async function POST(req: NextRequest) {
           status: "updated",
         });
         updated++;
-
-        await new Promise((r) => setTimeout(r, 400));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Onbekende fout";
+        if (isRateLimitError(msg)) rateLimited++;
         results.push({
           title: item.naam,
           barcode: item.barcode,
@@ -137,6 +122,7 @@ export async function POST(req: NextRequest) {
         skipped,
         notFound,
         failed,
+        rateLimited,
         processed: offset + batch.length,
       },
       results,

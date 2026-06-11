@@ -1,25 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllProducts } from "@/lib/products";
 import { getAllInventoryProducts } from "@/lib/sheet-inventory";
+import { isRateLimitError, shopifyErrorMessage, shopifyRest } from "@/lib/shopify-admin";
 
-const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN!;
-const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN!;
-
-async function shopifyRest(endpoint: string, method = "GET", body?: unknown) {
-  const res = await fetch(`https://${domain}/admin/api/2024-01/${endpoint}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": adminToken,
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return res.json();
+interface ShopifyProductRow {
+  id: number;
+  title: string;
 }
 
-async function findProduct(title: string) {
-  const data = await shopifyRest(`products.json?title=${encodeURIComponent(title)}&limit=1`);
-  return data?.products?.[0] ?? null;
+async function findProduct(title: string): Promise<ShopifyProductRow | null> {
+  const data = await shopifyRest(
+    `products.json?title=${encodeURIComponent(title)}&limit=5`
+  );
+  const products = (data?.products ?? []) as ShopifyProductRow[];
+  const t = title.trim().toLowerCase();
+  return products.find((p) => p.title.trim().toLowerCase() === t) ?? null;
 }
 
 async function createProduct(product: {
@@ -63,16 +58,18 @@ async function createProduct(product: {
     },
   });
 
-  if (data?.errors) {
-    throw new Error(JSON.stringify(data.errors));
-  }
+  const err = shopifyErrorMessage(data);
+  if (err) throw new Error(err);
 
   return data?.product;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { offset = 0, batchSize = 5 } = await req.json().catch(() => ({ offset: 0, batchSize: 5 }));
+    const { offset = 0, batchSize = 2 } = await req.json().catch(() => ({
+      offset: 0,
+      batchSize: 2,
+    }));
 
     const allProducts = await getAllProducts();
     const inventory = await getAllInventoryProducts();
@@ -89,6 +86,7 @@ export async function POST(req: NextRequest) {
     let created = 0;
     let skipped = 0;
     let failed = 0;
+    let rateLimited = 0;
 
     for (const product of batch) {
       try {
@@ -105,10 +103,9 @@ export async function POST(req: NextRequest) {
         });
         results.push({ title: product.title, status: "created" });
         created++;
-
-        await new Promise((r) => setTimeout(r, 500));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Onbekende fout";
+        if (isRateLimitError(msg)) rateLimited++;
         results.push({ title: product.title, status: "error", error: msg });
         failed++;
       }
@@ -118,7 +115,14 @@ export async function POST(req: NextRequest) {
     const hasMore = nextOffset < allProducts.length;
 
     return NextResponse.json({
-      summary: { total: allProducts.length, created, skipped, failed, processed: offset + batch.length },
+      summary: {
+        total: allProducts.length,
+        created,
+        skipped,
+        failed,
+        rateLimited,
+        processed: offset + batch.length,
+      },
       results,
       hasMore,
       nextOffset: hasMore ? nextOffset : null,
