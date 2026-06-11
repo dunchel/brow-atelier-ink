@@ -101,7 +101,7 @@ export default function LabelsPage() {
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/admin/labels")
+    fetch("/api/admin/labels", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (data.products) {

@@ -66,9 +66,9 @@ async function createProduct(product: {
 
 export async function POST(req: NextRequest) {
   try {
-    const { offset = 0, batchSize = 2 } = await req.json().catch(() => ({
+    const { offset = 0, batchSize = 1 } = await req.json().catch(() => ({
       offset: 0,
-      batchSize: 2,
+      batchSize: 1,
     }));
 
     const allProducts = await getAllProducts();

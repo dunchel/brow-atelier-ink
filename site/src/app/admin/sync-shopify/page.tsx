@@ -41,7 +41,7 @@ export default function SyncShopifyPage() {
         const res = await fetch("/api/admin/sync-products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ offset, batchSize: 2 }),
+          body: JSON.stringify({ offset, batchSize: 1 }),
         });
         const data = await res.json();
 
@@ -61,8 +61,7 @@ export default function SyncShopifyPage() {
 
         if (!data.hasMore) break;
         offset = data.nextOffset;
-        // Extra pauze tussen batches (Shopify max 2/sec)
-        await new Promise((r) => setTimeout(r, 800));
+        await new Promise((r) => setTimeout(r, 1500));
       }
     } catch {
       setError("Sync mislukt. Probeer opnieuw.");
@@ -90,7 +89,7 @@ export default function SyncShopifyPage() {
         const res = await fetch("/api/admin/sync-barcodes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ offset, batchSize: 2 }),
+          body: JSON.stringify({ offset, batchSize: 1 }),
         });
         const data = await res.json();
 
@@ -125,7 +124,7 @@ export default function SyncShopifyPage() {
 
         if (!data.hasMore) break;
         offset = data.nextOffset;
-        await new Promise((r) => setTimeout(r, 800));
+        await new Promise((r) => setTimeout(r, 1500));
       }
     } catch {
       setError("Barcode sync mislukt. Probeer opnieuw.");
@@ -142,14 +141,15 @@ export default function SyncShopifyPage() {
         </Link>
         <h1 className="font-heading text-3xl mt-2 mb-2">Sync naar Shopify</h1>
         <p className="text-brand-taupe mb-4">
-          Synchroniseer producten en barcodes uit je Google Sheet naar Shopify.
-          Sync gaat rustig (max 2 producten tegelijk) om Shopify rate limits te
-          vermijden. Duurt langer, maar minder fouten.
+          <strong>Labels</strong> leest direct live uit Google Sheets (ververs
+          pagina na wijzigingen). <strong>Shopify-sync</strong> is apart — 1
+          product per ~1,5 sec, duurt lang maar voorkomt rate limits.
         </p>
         <p className="text-xs text-brand-taupe mb-4 bg-brand-cream/60 rounded-lg p-3">
-          <strong>Labels printen?</strong> Dat kan direct via Admin → Labels zodra
-          het product in de Google Sheet staat met barcode — Shopify-sync is
-          alleen nodig voor POS/webshop.
+          <strong>&quot;Bestaat al&quot;</strong> = goed, staat al in Shopify.{" "}
+          <strong>Rate limit</strong> = even wachten (1 min) en opnieuw syncen —
+          alleen mislukte producten worden opnieuw geprobeerd als je sync opnieuw
+          start (bestaande worden overgeslagen).
         </p>
 
         <div className="flex flex-wrap gap-3 mb-8">

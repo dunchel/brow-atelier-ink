@@ -2,8 +2,8 @@ const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN!;
 const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN!;
 
 let lastCallAt = 0;
-/** Shopify limiet: 2 calls/sec — wij houden ~1 per 700ms aan */
-const MIN_INTERVAL_MS = 700;
+/** Shopify limiet: 2 calls/sec — max 1 call per seconde om veilig te blijven */
+const MIN_INTERVAL_MS = 1100;
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -64,7 +64,7 @@ export async function shopifyRest(
 
     if (res.status === 429 || isRateLimitError(data)) {
       lastError = shopifyErrorMessage(data) || "Rate limit";
-      await sleep(1500 * (attempt + 1));
+      await sleep(2000 * (attempt + 1));
       continue;
     }
 
