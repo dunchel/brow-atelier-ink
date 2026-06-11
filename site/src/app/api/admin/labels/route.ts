@@ -25,6 +25,13 @@ export interface LabelProduct {
   voorraad: string;
 }
 
+export interface LabelsSkippedRow {
+  tab: string;
+  row: number;
+  naam: string;
+  reason: "geen_naam" | "geen_barcode";
+}
+
 export async function GET() {
   try {
     const sheets = getSheetsClient();
@@ -38,11 +45,12 @@ export async function GET() {
       meta.data.sheets?.map((s) => s.properties?.title).filter(Boolean) as string[];
 
     const allProducts: LabelProduct[] = [];
+    const skipped: LabelsSkippedRow[] = [];
 
     for (const tabName of sheetNames) {
       const res = await sheets.spreadsheets.values.get({
         spreadsheetId: SHEET_ID,
-        range: `'${tabName}'!A1:Z1000`,
+        range: `'${tabName}'!A1:Z2000`,
       });
 
       const rows = res.data.values as string[][] | undefined;
@@ -54,10 +62,21 @@ export async function GET() {
         return idx >= 0 ? (row[idx] || "").trim() : "";
       };
 
-      for (const row of rows.slice(1)) {
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
         const naam = get(row, "naam") || get(row, "title") || get(row, "product");
         const barcode = get(row, "barcode");
-        if (!naam || !barcode) continue;
+
+        if (!naam && !barcode) continue;
+
+        if (!naam) {
+          skipped.push({ tab: tabName, row: i + 1, naam: barcode || `(rij ${i + 1})`, reason: "geen_naam" });
+          continue;
+        }
+        if (!barcode) {
+          skipped.push({ tab: tabName, row: i + 1, naam, reason: "geen_barcode" });
+          continue;
+        }
 
         allProducts.push({
           naam,
@@ -69,7 +88,21 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ products: allProducts });
+    const skippedByTab: Record<string, { geen_barcode: number; geen_naam: number }> = {};
+    for (const s of skipped) {
+      if (!skippedByTab[s.tab]) skippedByTab[s.tab] = { geen_barcode: 0, geen_naam: 0 };
+      skippedByTab[s.tab][s.reason]++;
+    }
+
+    return NextResponse.json({
+      products: allProducts,
+      meta: {
+        total: allProducts.length,
+        skippedCount: skipped.length,
+        skippedByTab,
+        skipped: skipped.slice(0, 30),
+      },
+    });
   } catch (err) {
     console.error("[Labels API]", err);
     return NextResponse.json({ error: "Kan producten niet laden" }, { status: 500 });

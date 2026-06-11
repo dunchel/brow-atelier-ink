@@ -82,6 +82,12 @@ const JEWELRY_CATEGORIES = new Set([
 
 export default function LabelsPage() {
   const [products, setProducts] = useState<LabelProduct[]>([]);
+  const [labelsMeta, setLabelsMeta] = useState<{
+    total: number;
+    skippedCount: number;
+    skippedByTab: Record<string, { geen_barcode: number; geen_naam: number }>;
+    skipped: { tab: string; row: number; naam: string; reason: string }[];
+  } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("alle");
@@ -98,8 +104,10 @@ export default function LabelsPage() {
     fetch("/api/admin/labels")
       .then((r) => r.json())
       .then((data) => {
-        if (data.products) setProducts(data.products);
-        else setError(data.error || "Onbekende fout");
+        if (data.products) {
+          setProducts(data.products);
+          if (data.meta) setLabelsMeta(data.meta);
+        } else setError(data.error || "Onbekende fout");
       })
       .catch(() => setError("Kan geen verbinding maken"))
       .finally(() => setLoading(false));
@@ -784,7 +792,40 @@ export default function LabelsPage() {
           Printer: <strong>Brother QL-1100C</strong> voor labels, of gewone{" "}
           <strong>A4</strong> voor een QR-boekje. Kies formaat, aantal labels
           per product, stijl en indeling.
+          {!loading && products.length > 0 && (
+            <span className="block mt-2 text-sm">
+              <strong>{products.length}</strong> producten geladen
+              {categoryFilter === "alle"
+                ? ""
+                : ` · filter: ${categoryFilter} (${filtered.length})`}
+              {search ? ` · zoeken: "${search}" (${filtered.length})` : ""}
+            </span>
+          )}
         </p>
+
+        {labelsMeta && labelsMeta.skippedCount > 0 && (
+          <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg text-sm">
+            <p className="font-medium text-orange-900 mb-2">
+              {labelsMeta.skippedCount} rij(en) in Google Sheet niet zichtbaar — ontbrekende barcode of naam
+            </p>
+            <p className="text-orange-800 text-xs mb-2">
+              Labels print alleen producten met <strong>Naam</strong> én{" "}
+              <strong>Barcode</strong> ingevuld. Vul de Barcode-kolom aan (bijv.
+              BA-KET-032) en ververs deze pagina.
+            </p>
+            <ul className="text-xs text-orange-800 space-y-1 max-h-32 overflow-y-auto">
+              {labelsMeta.skipped.map((s, i) => (
+                <li key={i}>
+                  <strong>{s.tab}</strong> rij {s.row}: {s.naam} —{" "}
+                  {s.reason === "geen_barcode" ? "geen barcode" : "geen naam"}
+                </li>
+              ))}
+              {labelsMeta.skippedCount > labelsMeta.skipped.length && (
+                <li>… en {labelsMeta.skippedCount - labelsMeta.skipped.length} meer</li>
+              )}
+            </ul>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="bg-white rounded-lg border border-brand-cream p-4 mb-6">
