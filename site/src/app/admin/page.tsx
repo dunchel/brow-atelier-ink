@@ -38,7 +38,8 @@ export default function AdminPage() {
           >
             <h2 className="font-heading text-xl mb-1">Verkoop Dashboard</h2>
             <p className="text-sm text-brand-taupe">
-              Omzet, bestellingen en split producten / behandelingen.
+              Kassa op laptop: product scannen, behandeling aantikken, QR naar
+              Shopify POS. Daaronder omzet per categorie.
             </p>
           </Link>
 

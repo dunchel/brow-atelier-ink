@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { PosWorkstation } from "@/components/PosWorkstation";
 
 interface Order {
   id: string;
@@ -95,9 +96,34 @@ export default function VerkoopPage() {
             <Link href="/admin" className="text-xs text-brand-taupe hover:text-brand-gold transition-colors uppercase tracking-widest">
               &larr; Admin
             </Link>
-            <h1 className="font-heading text-3xl mt-2">Verkoop Dashboard</h1>
+            <h1 className="font-heading text-3xl mt-2">Verkoop</h1>
+            <p className="text-sm text-brand-taupe mt-1">
+              Scan of tik een code, tik een behandeling aan, toon QR aan de
+              Shopify-app — één keer pinnen.
+            </p>
           </div>
         </div>
+
+        <section className="bg-white rounded-lg border border-brand-gold/40 p-5 md:p-6 mb-10">
+          <div className="flex items-baseline justify-between gap-3 mb-4">
+            <div>
+              <h2 className="font-heading text-xl">Kassa</h2>
+              <p className="text-xs text-brand-taupe mt-1">
+                Zelfde flow als op de telefoon: product zoeken of behandeling
+                aantikken, daarna QR scannen in de Shopify POS-app.
+              </p>
+            </div>
+            <Link
+              href="/admin/behandelingen"
+              className="text-xs text-brand-gold hover:text-brand-dark whitespace-nowrap"
+            >
+              Tarieven bewerken
+            </Link>
+          </div>
+          <PosWorkstation lookupUrl="/api/admin/lookup" autofocus />
+        </section>
+
+        <h2 className="font-heading text-2xl mb-4">Overzicht</h2>
 
         {loading && <p className="text-brand-taupe">Laden...</p>}
         {error && (
