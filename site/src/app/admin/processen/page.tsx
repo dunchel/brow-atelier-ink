@@ -65,6 +65,45 @@ const PROCESSES: Process[] = [
       { label: "Scan & Voorraad", href: "/admin/scan" },
       { label: "Labels printen", href: "/admin/labels" },
       { label: "Producten beheren", href: "/admin/producten" },
+      { label: "Telefoonkassa", href: "/shop/code" },
+    ],
+  },
+  {
+    id: "verkoop-combi",
+    title: "Sieraad + behandeling in één pin",
+    subtitle: "Klant koopt iets én krijgt een behandeling — niet twee keer pinnen",
+    steps: [
+      {
+        title: "Open de telefoonkassa",
+        description:
+          "Ga naar Verkoop via telefoon (/shop/code). Werkt het best op je telefoon.",
+      },
+      {
+        title: "Zet het sieraad op de bon",
+        description:
+          "Typ of scan de productcode van het label. Tik op het gevonden product om het op de bon te zetten.",
+      },
+      {
+        title: "Tik de behandeling aan",
+        description:
+          "Kies onder Behandelingen de juiste behandeling (brows, lashes, …). Die komt op dezelfde bon.",
+        tip: "Prijzen ontbreken? Vul ze eerst in bij Admin → Behandelingen & tarieven en sync naar Shopify.",
+      },
+      {
+        title: "Toon QR's aan Shopify POS",
+        description:
+          "Tik 'Toon QR's voor POS' en scan elke code met de POS-scanner. POS telt alles bij elkaar op.",
+      },
+      {
+        title: "Eén keer pinnen",
+        description:
+          "Reken het totaal af in Shopify POS. Geen aparte pin voor de behandeling.",
+      },
+    ],
+    links: [
+      { label: "Telefoonkassa", href: "/shop/code" },
+      { label: "Behandelingen & tarieven", href: "/admin/behandelingen" },
+      { label: "Verkoop dashboard", href: "/admin/verkoop" },
     ],
   },
   {

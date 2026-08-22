@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findProductByBarcode, parseStockCount } from "@/lib/sheet-inventory";
+import { findTreatmentByBarcode } from "@/lib/treatments";
 
 export const runtime = "nodejs";
 
@@ -18,24 +19,41 @@ export async function GET(req: NextRequest) {
     }
 
     const product = await findProductByBarcode(code);
-    if (!product) {
-      return NextResponse.json({ error: "Product niet gevonden", code }, { status: 404 });
+    if (product) {
+      const stockCount = parseStockCount(product.voorraad);
+      return NextResponse.json({
+        product: {
+          naam: product.naam,
+          prijs: product.prijs,
+          barcode: product.barcode,
+          categorie: product.categorie,
+          foto: product.foto || null,
+          handle: slugify(product.naam),
+          stockCount,
+          available: stockCount > 0,
+          kind: "product",
+        },
+      });
     }
 
-    const stockCount = parseStockCount(product.voorraad);
+    const treatment = await findTreatmentByBarcode(code);
+    if (treatment) {
+      return NextResponse.json({
+        product: {
+          naam: treatment.naam,
+          prijs: treatment.prijs,
+          barcode: treatment.barcode,
+          categorie: treatment.categorie,
+          foto: null,
+          handle: slugify(treatment.naam),
+          stockCount: 999,
+          available: true,
+          kind: "behandeling",
+        },
+      });
+    }
 
-    return NextResponse.json({
-      product: {
-        naam: product.naam,
-        prijs: product.prijs,
-        barcode: product.barcode,
-        categorie: product.categorie,
-        foto: product.foto || null,
-        handle: slugify(product.naam),
-        stockCount,
-        available: stockCount > 0,
-      },
-    });
+    return NextResponse.json({ error: "Product niet gevonden", code }, { status: 404 });
   } catch (err) {
     console.error("[Product lookup]", err);
     const message = err instanceof Error ? err.message : "Lookup mislukt";

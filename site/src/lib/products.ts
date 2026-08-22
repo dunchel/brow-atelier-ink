@@ -5,6 +5,7 @@
 
 import { google } from "googleapis";
 import { getProducts as getShopifyProducts, type ShopifyProduct } from "./shopify";
+import { isTreatmentTabName } from "./treatments";
 
 export interface Product {
   id: string;
@@ -131,6 +132,8 @@ async function getProductsFromSheet(): Promise<Product[]> {
     const allProducts: Product[] = [];
 
     for (const name of sheetNames) {
+      if (isTreatmentTabName(name)) continue;
+
       const res = await sheets.spreadsheets.values.get({
         spreadsheetId: SHEET_ID,
         range: `'${name}'!A1:Z1000`,

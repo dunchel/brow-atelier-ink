@@ -38,7 +38,7 @@ export default function AdminPage() {
           >
             <h2 className="font-heading text-xl mb-1">Verkoop Dashboard</h2>
             <p className="text-sm text-brand-taupe">
-              Omzet, bestellingen en statistieken in een overzicht.
+              Omzet, bestellingen en split producten / behandelingen.
             </p>
           </Link>
 
@@ -48,8 +48,19 @@ export default function AdminPage() {
           >
             <h2 className="font-heading text-xl mb-1">Verkoop via telefoon</h2>
             <p className="text-sm text-brand-taupe">
-              Productcode intikken, grote QR tonen voor POS-scan, korting
-              kiezen — ideaal op je telefoon in de winkel.
+              Product scannen of behandeling aantikken, alles op één bon —
+              één keer pinnen in Shopify POS.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/behandelingen"
+            className="block p-6 bg-white rounded-lg border border-brand-cream hover:border-brand-gold transition-colors"
+          >
+            <h2 className="font-heading text-xl mb-1">Behandelingen &amp; tarieven</h2>
+            <p className="text-sm text-brand-taupe">
+              Prijzen voor brows, lashes en overige behandelingen. Sync naar
+              Shopify zodat je ze samen met sieraden kunt afrekenen.
             </p>
           </Link>
 

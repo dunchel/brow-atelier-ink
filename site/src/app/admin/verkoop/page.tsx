@@ -21,6 +21,20 @@ interface Stats {
   allTime: { count: number; total: number };
 }
 
+interface CategorySplit {
+  producten: number;
+  behandelingen: number;
+  countProducten: number;
+  countBehandelingen: number;
+}
+
+interface CategoryStats {
+  today: CategorySplit;
+  week: CategorySplit;
+  month: CategorySplit;
+  allTime: CategorySplit;
+}
+
 function formatPrice(amount: number) {
   return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(amount);
 }
@@ -52,6 +66,8 @@ const statusLabels: Record<string, string> = {
 export default function VerkoopPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [categoryStats, setCategoryStats] = useState<CategoryStats | null>(null);
+  const [monthByType, setMonthByType] = useState<{ label: string; total: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,7 +76,12 @@ export default function VerkoopPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.error) setError(data.error);
-        else { setOrders(data.orders); setStats(data.stats); }
+        else {
+          setOrders(data.orders);
+          setStats(data.stats);
+          setCategoryStats(data.categoryStats || null);
+          setMonthByType(data.monthByType || []);
+        }
       })
       .catch(() => setError("Kan bestellingen niet laden"))
       .finally(() => setLoading(false));
@@ -89,7 +110,7 @@ export default function VerkoopPage() {
         )}
 
         {stats && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
               { label: "Vandaag", ...stats.today },
               { label: "Deze week", ...stats.week },
@@ -102,6 +123,69 @@ export default function VerkoopPage() {
                 <p className="text-xs text-brand-taupe mt-1">{s.count} bestelling{s.count !== 1 ? "en" : ""}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {categoryStats && (
+          <div className="grid md:grid-cols-2 gap-4 mb-6">
+            <div className="bg-white rounded-lg border border-brand-cream p-5">
+              <p className="text-xs uppercase tracking-widest text-brand-taupe mb-3">
+                Deze maand — producten vs behandelingen
+              </p>
+              <div className="space-y-3">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm">Producten</span>
+                  <span className="font-heading text-xl text-brand-gold">
+                    {formatPrice(categoryStats.month.producten)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm">Behandelingen</span>
+                  <span className="font-heading text-xl text-brand-gold">
+                    {formatPrice(categoryStats.month.behandelingen)}
+                  </span>
+                </div>
+                <p className="text-xs text-brand-taupe">
+                  {categoryStats.month.countProducten} productregels ·{" "}
+                  {categoryStats.month.countBehandelingen} behandelregels
+                </p>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg border border-brand-cream p-5">
+              <p className="text-xs uppercase tracking-widest text-brand-taupe mb-3">
+                Vandaag
+              </p>
+              <div className="space-y-3">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm">Producten</span>
+                  <span className="font-heading text-xl">
+                    {formatPrice(categoryStats.today.producten)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm">Behandelingen</span>
+                  <span className="font-heading text-xl">
+                    {formatPrice(categoryStats.today.behandelingen)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {monthByType.length > 0 && (
+          <div className="bg-white rounded-lg border border-brand-cream p-5 mb-10">
+            <p className="text-xs uppercase tracking-widest text-brand-taupe mb-3">
+              Omzet deze maand per type
+            </p>
+            <div className="space-y-2">
+              {monthByType.map((row) => (
+                <div key={row.label} className="flex justify-between text-sm">
+                  <span>{row.label}</span>
+                  <span className="font-medium">{formatPrice(row.total)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

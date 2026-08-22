@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { getTreatments } from "@/lib/treatments";
+import { parsePrice } from "@/lib/discount";
 
 const MEETAIMY_URL =
   "https://widget2.meetaimy.com/widgetWeb?salonId=NDMxNjUwNQ%3D%3D&salonEmail=YW50aWxib3JnbGluZGFAZ21haWwuY29t";
@@ -52,7 +54,12 @@ const diensten = [
   },
 ];
 
-export default function DienstenPage() {
+export default async function DienstenPage() {
+  const treatments = await getTreatments();
+  const priceByName = new Map(
+    treatments.map((t) => [t.naam.trim().toLowerCase(), t.prijs])
+  );
+
   return (
     <>
       <section className="pt-32 pb-12 bg-brand-cream">
@@ -92,6 +99,15 @@ export default function DienstenPage() {
                       <p className="text-sm text-brand-taupe leading-relaxed">
                         {item.description}
                       </p>
+                      {(() => {
+                        const raw = priceByName.get(item.name.toLowerCase()) || "";
+                        const n = parsePrice(raw);
+                        return n > 0 ? (
+                          <p className="mt-3 text-brand-gold font-semibold">
+                            &euro;{raw.replace(".", ",")}
+                          </p>
+                        ) : null;
+                      })()}
                     </div>
                     <a
                       href={MEETAIMY_URL}

@@ -4,13 +4,24 @@ import { useCallback, useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { SaleLookupPanel, type SaleProduct } from "@/components/SaleLookupPanel";
+import { PosSaleBoard, type TreatmentItem } from "@/components/PosSaleBoard";
 
 function CodeLookupContent() {
   const searchParams = useSearchParams();
   const [code, setCode] = useState("");
   const [product, setProduct] = useState<SaleProduct | null>(null);
+  const [treatments, setTreatments] = useState<TreatmentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/treatments", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.treatments)) setTreatments(data.treatments);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const lookup = useCallback(async (barcode: string) => {
     const trimmed = barcode.trim();
@@ -52,7 +63,8 @@ function CodeLookupContent() {
             Verkoop via telefoon
           </h1>
           <p className="text-brand-taupe text-sm">
-            Typ productcode, toon QR aan POS-scanner, kies eventueel korting.
+            Product scannen of behandeling aantikken. Alles op één bon — één keer
+            pinnen.
           </p>
         </div>
       </section>
@@ -70,7 +82,7 @@ function CodeLookupContent() {
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="BA-KET-001"
+              placeholder="BA-KET-001 of BA-BHL-001"
               className="flex-1 px-4 py-3 bg-white border border-brand-cream rounded-lg focus:outline-none focus:border-brand-gold text-base font-mono uppercase"
               autoFocus
               autoComplete="off"
@@ -93,17 +105,9 @@ function CodeLookupContent() {
 
           {product && <SaleLookupPanel product={product} />}
 
-          {!product && !loading && (
-            <div className="mt-6 p-4 bg-brand-light rounded-lg text-xs text-brand-taupe space-y-2">
-              <p className="font-medium text-brand-dark">Zo werkt het</p>
-              <ol className="list-decimal list-inside space-y-1">
-                <li>Typ de code van het label (bijv. BA-KET-001)</li>
-                <li>Laat Shopify POS de QR op je scherm scannen</li>
-                <li>Kies korting indien nodig — pas dezelfde korting toe in POS</li>
-                <li>Reken af in POS</li>
-              </ol>
-            </div>
-          )}
+          <div className="mt-6">
+            <PosSaleBoard treatments={treatments} lastProduct={product} />
+          </div>
         </div>
       </section>
     </>

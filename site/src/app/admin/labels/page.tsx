@@ -4,6 +4,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
+import {
+  EARRING_LABEL,
+  buildEarringPrintHtml,
+  earringLabelsPerSticker,
+} from "@/lib/label-earring";
 
 interface LabelProduct {
   naam: string;
@@ -15,7 +20,7 @@ interface LabelProduct {
 
 type PrintMode = "single" | "stock";
 type PrintFormat = "label" | "a4";
-type StickerLayout = "single" | "double" | "grid";
+type StickerLayout = "single" | "double" | "grid" | "earring";
 type LabelStyle = "full" | "compact" | "mini";
 
 interface LayoutConfig {
@@ -127,6 +132,8 @@ export default function LabelsPage() {
       ? 1
       : stickerLayout === "double"
       ? 2
+      : stickerLayout === "earring"
+      ? earringLabelsPerSticker()
       : gridLabelsPerSticker;
 
   const stickerWidthMm =
@@ -134,12 +141,16 @@ export default function LabelsPage() {
       ? cfg.singleWidth
       : stickerLayout === "double"
       ? cfg.doubleWidth
+      : stickerLayout === "earring"
+      ? EARRING_LABEL.tapeWidthMm
       : cfg.gridWidth;
   const stickerHeightMm =
     stickerLayout === "single"
       ? cfg.singleHeight
       : stickerLayout === "double"
       ? cfg.doubleHeight
+      : stickerLayout === "earring"
+      ? EARRING_LABEL.tapeHeightMm
       : cfg.gridHeight;
 
   const categories = Array.from(new Set(products.map((p) => p.categorie)));
@@ -473,6 +484,23 @@ export default function LabelsPage() {
 
     const printItems = buildPrintItems(prods);
     if (printItems.length === 0) return null;
+
+    if (stickerLayout === "earring") {
+      const limitedItems = previewOnly
+        ? printItems.slice(0, earringLabelsPerSticker())
+        : printItems;
+      const stickers = limitedItems.reduce<LabelProduct[][]>((acc, item, idx) => {
+        const pageIdx = Math.floor(idx / earringLabelsPerSticker());
+        if (!acc[pageIdx]) acc[pageIdx] = [];
+        acc[pageIdx].push(item);
+        return acc;
+      }, []);
+      return buildEarringPrintHtml({
+        stickers,
+        renderQr: renderQrSvgSized,
+        escapeHtml,
+      });
+    }
 
     const limitedItems = previewOnly
       ? printItems.slice(0, labelsPerSticker)
@@ -1071,6 +1099,24 @@ export default function LabelsPage() {
               voor kleinere vierkante labels.
             </p>
           )}
+          {printFormat === "label" &&
+            selectedProducts.length > 0 &&
+            selectedProducts.every(
+              (p) => (p.categorie || "").toLowerCase().includes("oorbel")
+            ) &&
+            stickerLayout !== "earring" && (
+              <p className="text-xs text-orange-600 mt-3">
+                Je hebt alleen oorbellen geselecteerd. Gebruik{" "}
+                <button
+                  type="button"
+                  onClick={() => setStickerLayout("earring")}
+                  className="underline font-semibold"
+                >
+                  Oorbellen-strook (vouwen)
+                </button>{" "}
+                — rechte strook met QR aan één kant, omvouwen over het haakje.
+              </p>
+            )}
         </div>
         )}
 
@@ -1110,8 +1156,28 @@ export default function LabelsPage() {
               >
                 Brede rol (102mm) — {gridLabelsPerSticker} per vel
               </button>
+              <button
+                onClick={() => setStickerLayout("earring")}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors whitespace-nowrap ${
+                  stickerLayout === "earring"
+                    ? "bg-brand-dark text-white border-brand-dark"
+                    : "bg-white border-brand-cream text-brand-taupe hover:border-brand-gold"
+                }`}
+              >
+                Oorbellen-strook (vouwen)
+              </button>
             </div>
           </div>
+          {stickerLayout === "earring" && (
+            <p className="text-xs text-brand-taupe mt-3">
+              Rechte vouwstrook van <strong>12 × 42 mm</strong> (van het
+              mock-up: nagelbreed, ± 4 cm lang). QR op de ene helft, prijs +
+              code op de andere. Vouw over het haakje. Op de 62 mm-rol passen{" "}
+              <strong>5 stroken</strong> naast elkaar — knip langs de stippellijn.
+              Onderste helft is 180° gedraaid, zodat die na het vouwen rechtop
+              leesbaar is.
+            </p>
+          )}
           {stickerLayout === "grid" && (
             <p className="text-xs text-brand-taupe mt-3">
               Voor de brede rol <strong>DK-22243 (102 mm)</strong>. Er passen{" "}
@@ -1269,6 +1335,30 @@ export default function LabelsPage() {
                     <p className="text-[10px] text-gray-500 truncate w-full">{p.barcode}</p>
                   </div>
                 ))
+              ) : stickerLayout === "earring" ? (
+                selectedPrintItems.slice(0, 8).map((p, idx) => (
+                  <div
+                    key={`${p.barcode}-${idx}`}
+                    className="flex flex-col items-center bg-white border border-dashed border-brand-taupe/40 overflow-hidden"
+                    style={{ width: "12mm", height: "42mm" }}
+                  >
+                    <div className="flex items-center justify-center" style={{ height: "19.5mm" }}>
+                      <QRCodeSVG value={p.barcode} size={28} level="M" />
+                    </div>
+                    <div className="w-full text-center text-[5px] uppercase tracking-wider text-brand-taupe border-y border-dashed border-black py-px">
+                      vouw
+                    </div>
+                    <div
+                      className="flex flex-col items-center justify-center gap-0.5 px-0.5"
+                      style={{ height: "19.5mm", transform: "rotate(180deg)" }}
+                    >
+                      <p className="text-[7px] font-extrabold leading-none">&euro;{p.prijs}</p>
+                      <p className="text-[5px] font-semibold text-center leading-tight break-all">
+                        {p.barcode}
+                      </p>
+                    </div>
+                  </div>
+                ))
               ) : (
                 selectedPrintItems.slice(0, 8).map((p, idx) => (
                 <div
@@ -1366,6 +1456,10 @@ export default function LabelsPage() {
                     (kies een <strong>102 mm</strong> formaat dichtbij{" "}
                     {cfg.gridHeight} mm, of <strong>102 mm continuous</strong>)
                   </>
+                ) : stickerLayout === "earring" ? (
+                  <>
+                    (62 mm continuous, lengte <strong>42 mm</strong> per vel)
+                  </>
                 ) : (
                   <>(of dichtstbijzijnde 62 mm breed profiel)</>
                 )}
@@ -1379,6 +1473,13 @@ export default function LabelsPage() {
                   snijlijnen. Knip met de hand uit. Zet{" "}
                   <strong>Auto cut = on</strong> zodat ieder vel netjes
                   afgesneden wordt.
+                </p>
+              ) : stickerLayout === "earring" ? (
+                <p>
+                  <strong>Oorbellen-strook:</strong> 5 rechte stroken van{" "}
+                  <strong>12 × 42 mm</strong> per vel. Knip uit, vouw op de
+                  stippellijn over het oorbelhaakje. QR blijft aan één kant,
+                  prijs aan de andere. Zet <strong>Auto cut = on</strong>.
                 </p>
               ) : (
                 <p>

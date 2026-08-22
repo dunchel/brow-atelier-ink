@@ -20,6 +20,7 @@ export interface SaleProduct {
   handle?: string;
   stockCount: number;
   available: boolean;
+  kind?: "product" | "behandeling";
 }
 
 interface SaleLookupPanelProps {
