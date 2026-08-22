@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   ensureTreatmentsSheet,
   getTreatments,
+  syncTreatmentsFromAimy,
   updateTreatmentPrices,
 } from "@/lib/treatments";
 
@@ -14,9 +15,28 @@ export async function GET() {
       treatments: ensured.treatments,
       tab: ensured.tab,
       created: ensured.created,
+      imported: ensured.imported,
+      aimyError: ensured.aimyError,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Kan behandelingen niet laden";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const overwrite = body?.overwrite !== false;
+    const synced = await syncTreatmentsFromAimy({ overwritePrices: overwrite });
+    return NextResponse.json({
+      treatments: synced.treatments,
+      tab: synced.tab,
+      imported: synced.imported,
+      source: synced.source,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Aimy-import mislukt";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

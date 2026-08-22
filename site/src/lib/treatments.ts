@@ -1,4 +1,10 @@
 import { google } from "googleapis";
+import {
+  aimyBarcode,
+  fetchAimyServices,
+  formatAimyDuration,
+  formatAimyPrice,
+} from "./meetaimy";
 
 export const TREATMENT_TAB = "Behandelingen";
 
@@ -8,6 +14,9 @@ export interface Treatment {
   barcode: string;
   categorie: string;
   duur: string;
+  aimyId?: string;
+  prijsVan?: string;
+  prijsTot?: string;
 }
 
 export const DEFAULT_TREATMENTS: Treatment[] = [
@@ -179,6 +188,9 @@ function parseTreatmentRows(rows: string[][]): Treatment[] {
       barcode,
       categorie: get(row, "categorie", "category") || "Behandelingen",
       duur: get(row, "duur", "duration") || "",
+      aimyId: get(row, "aimyid", "aimy_id", "serviceid") || "",
+      prijsVan: get(row, "prijsvan", "van") || "",
+      prijsTot: get(row, "prijstot", "tot") || "",
     });
   }
   return items;
@@ -221,29 +233,30 @@ export async function getTreatments(): Promise<Treatment[]> {
   }
 
   const fromSheet = await getTreatmentsFromSheet();
-  if (fromSheet.length === 0) {
-    const fallback = DEFAULT_TREATMENTS.map((t) => ({ ...t }));
+  if (!isEmptyCatalog(fromSheet)) {
+    treatmentsCache = { data: fromSheet, timestamp: Date.now() };
+    return fromSheet;
+  }
+
+  try {
+    const aimy = await fetchAimyServices();
+    const fromAimy: Treatment[] = aimy.map((s) => ({
+      naam: s.naam,
+      prijs: formatAimyPrice(s.prijs),
+      barcode: aimyBarcode(s.aimyId),
+      categorie: s.categorie,
+      duur: formatAimyDuration(s.duurMin, s.duurVan, s.duurTot),
+      aimyId: String(s.aimyId),
+      prijsVan: s.prijsVan != null ? formatAimyPrice(s.prijsVan) : "",
+      prijsTot: s.prijsTot != null ? formatAimyPrice(s.prijsTot) : "",
+    }));
+    treatmentsCache = { data: fromAimy, timestamp: Date.now() };
+    return fromAimy;
+  } catch {
+    const fallback = fromSheet.length > 0 ? fromSheet : DEFAULT_TREATMENTS.map((t) => ({ ...t }));
     treatmentsCache = { data: fallback, timestamp: Date.now() };
     return fallback;
   }
-
-  const byBarcode = new Map(fromSheet.map((t) => [t.barcode.toUpperCase(), t]));
-  const merged: Treatment[] = DEFAULT_TREATMENTS.map((def) => {
-    const existing = byBarcode.get(def.barcode.toUpperCase());
-    if (!existing) return { ...def };
-    byBarcode.delete(def.barcode.toUpperCase());
-    return {
-      ...def,
-      ...existing,
-      duur: existing.duur || def.duur,
-      categorie: existing.categorie || def.categorie,
-    };
-  });
-  Array.from(byBarcode.values()).forEach((extra) => {
-    merged.push(extra);
-  });
-  treatmentsCache = { data: merged, timestamp: Date.now() };
-  return merged;
 }
 
 function bustTreatmentsCache() {
@@ -259,66 +272,153 @@ export async function findTreatmentByBarcode(
   return all.find((t) => t.barcode.toUpperCase() === code) ?? null;
 }
 
+function treatmentToRow(t: Treatment): string[] {
+  return [
+    t.naam,
+    t.prijs,
+    t.barcode,
+    t.categorie,
+    t.duur,
+    t.aimyId || "",
+    t.prijsVan || "",
+    t.prijsTot || "",
+  ];
+}
+
+async function writeTreatmentsToSheet(tab: string, treatments: Treatment[]) {
+  const sheets = getWriteClient();
+  const values = [
+    ["Naam", "Prijs", "Barcode", "Categorie", "Duur", "AimyId", "PrijsVan", "PrijsTot"],
+    ...treatments.map(treatmentToRow),
+  ];
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: SHEET_ID,
+    range: `'${tab}'!A1:Z500`,
+  });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `'${tab}'!A1:H${values.length}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values },
+  });
+  bustTreatmentsCache();
+}
+
+function isEmptyCatalog(treatments: Treatment[]): boolean {
+  if (treatments.length === 0) return true;
+  return treatments.every((t) => !parseFloat((t.prijs || "").replace(",", ".")));
+}
+
+export async function syncTreatmentsFromAimy(opts?: {
+  overwritePrices?: boolean;
+}): Promise<{ tab: string; treatments: Treatment[]; imported: number; source: string }> {
+  if (!SHEET_ID || !GOOGLE_CREDENTIALS_B64) {
+    throw new Error("Google Sheet is niet geconfigureerd");
+  }
+
+  const overwrite = opts?.overwritePrices === true;
+  const ensured = await ensureTreatmentsSheetTab();
+  const current = await getTreatmentsFromSheet();
+  const aimy = await fetchAimyServices();
+
+  const byAimyId = new Map(
+    current
+      .filter((t) => t.aimyId)
+      .map((t) => [t.aimyId!, t])
+  );
+  const byBarcode = new Map(current.map((t) => [t.barcode.toUpperCase(), t]));
+
+  const replaceAll = isEmptyCatalog(current);
+  const next: Treatment[] = [];
+
+  for (const s of aimy) {
+    const barcode = aimyBarcode(s.aimyId);
+    const existing =
+      byAimyId.get(String(s.aimyId)) ||
+      byBarcode.get(barcode.toUpperCase());
+    const aimyPrijs = formatAimyPrice(s.prijs);
+    const keepManual = existing && !overwrite && !replaceAll && parseFloat((existing.prijs || "").replace(",", ".")) > 0;
+    next.push({
+      naam: s.naam,
+      prijs: keepManual ? existing.prijs : aimyPrijs,
+      barcode: existing?.barcode || barcode,
+      categorie: s.categorie,
+      duur: formatAimyDuration(s.duurMin, s.duurVan, s.duurTot),
+      aimyId: String(s.aimyId),
+      prijsVan: s.prijsVan != null ? formatAimyPrice(s.prijsVan) : "",
+      prijsTot: s.prijsTot != null ? formatAimyPrice(s.prijsTot) : "",
+    });
+  }
+
+  const aimyIds = new Set(next.map((t) => t.aimyId));
+  for (const extra of current) {
+    if (extra.aimyId && aimyIds.has(extra.aimyId)) continue;
+    if (next.some((t) => t.barcode.toUpperCase() === extra.barcode.toUpperCase())) continue;
+    next.push(extra);
+  }
+
+  await writeTreatmentsToSheet(ensured.tab, next);
+  return {
+    tab: ensured.tab,
+    treatments: next,
+    imported: aimy.length,
+    source: "aimy",
+  };
+}
+
+async function ensureTreatmentsSheetTab(): Promise<{ created: boolean; tab: string }> {
+  const existingTab = await findTreatmentsTabName();
+  if (existingTab) return { created: false, tab: existingTab };
+
+  const sheets = getWriteClient();
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: {
+      requests: [{ addSheet: { properties: { title: TREATMENT_TAB } } }],
+    },
+  });
+  return { created: true, tab: TREATMENT_TAB };
+}
+
 export async function ensureTreatmentsSheet(): Promise<{
   created: boolean;
   tab: string;
   treatments: Treatment[];
+  imported?: number;
+  aimyError?: string;
 }> {
   if (!SHEET_ID || !GOOGLE_CREDENTIALS_B64) {
     throw new Error("Google Sheet is niet geconfigureerd");
   }
 
-  const existingTab = await findTreatmentsTabName();
-  const sheets = getWriteClient();
-
-  if (!existingTab) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SHEET_ID,
-      requestBody: {
-        requests: [{ addSheet: { properties: { title: TREATMENT_TAB } } }],
-      },
-    });
+  const tabInfo = await ensureTreatmentsSheetTab();
+  try {
+    const synced = await syncTreatmentsFromAimy({ overwritePrices: false });
+    return {
+      created: tabInfo.created,
+      tab: synced.tab,
+      treatments: synced.treatments,
+      imported: synced.imported,
+    };
+  } catch (err) {
+    const aimyError = err instanceof Error ? err.message : "Aimy ophalen mislukt";
+    const current = await getTreatments();
+    if (current.length === 0) {
+      await writeTreatmentsToSheet(tabInfo.tab, DEFAULT_TREATMENTS);
+      return {
+        created: tabInfo.created,
+        tab: tabInfo.tab,
+        treatments: DEFAULT_TREATMENTS.map((t) => ({ ...t })),
+        aimyError,
+      };
+    }
+    return {
+      created: tabInfo.created,
+      tab: tabInfo.tab,
+      treatments: current,
+      aimyError,
+    };
   }
-
-  const tab = existingTab || TREATMENT_TAB;
-  const current = existingTab ? await getTreatmentsFromSheet() : [];
-
-  if (current.length === 0) {
-    const values = [
-      ["Naam", "Prijs", "Barcode", "Categorie", "Duur"],
-      ...DEFAULT_TREATMENTS.map((t) => [
-        t.naam,
-        t.prijs,
-        t.barcode,
-        t.categorie,
-        t.duur,
-      ]),
-    ];
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: `'${tab}'!A1:E${values.length}`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values },
-    });
-    bustTreatmentsCache();
-    return { created: true, tab, treatments: DEFAULT_TREATMENTS.map((t) => ({ ...t })) };
-  }
-
-  const have = new Set(current.map((t) => t.barcode.toUpperCase()));
-  const missing = DEFAULT_TREATMENTS.filter((t) => !have.has(t.barcode.toUpperCase()));
-  if (missing.length > 0) {
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SHEET_ID,
-      range: `'${tab}'!A:E`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: missing.map((t) => [t.naam, t.prijs, t.barcode, t.categorie, t.duur]),
-      },
-    });
-  }
-
-  bustTreatmentsCache();
-  return { created: !existingTab, tab, treatments: await getTreatments() };
 }
 
 export async function updateTreatmentPrices(

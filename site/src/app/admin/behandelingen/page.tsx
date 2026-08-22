@@ -9,6 +9,9 @@ interface Treatment {
   barcode: string;
   categorie: string;
   duur: string;
+  aimyId?: string;
+  prijsVan?: string;
+  prijsTot?: string;
 }
 
 export default function BehandelingenAdminPage() {
@@ -17,6 +20,7 @@ export default function BehandelingenAdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
 
@@ -30,7 +34,13 @@ export default function BehandelingenAdminPage() {
         else {
           setTreatments(data.treatments || []);
           setTab(data.tab || "Behandelingen");
-          if (data.created) setMsg("Tab 'Behandelingen' aangemaakt in Google Sheet. Vul de prijzen in.");
+          if (data.aimyError) {
+            setError(`Aimy: ${data.aimyError}`);
+          } else if (data.imported) {
+            setMsg(
+              `${data.imported} behandelingen geladen uit de afspraak-widget (Aimy). Prijzen kun je hier nog aanpassen.`
+            );
+          }
         }
       })
       .catch(() => setError("Kan behandelingen niet laden"))
@@ -62,11 +72,32 @@ export default function BehandelingenAdminPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Opslaan mislukt");
       setTreatments(data.treatments);
-      setMsg("Prijzen opgeslagen in Google Sheet.");
+      setMsg("Prijzen opgeslagen. Deze gelden in de kassa tot je ze weer wijzigt.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Opslaan mislukt");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const importAimy = async () => {
+    setImporting(true);
+    setError("");
+    setMsg("");
+    try {
+      const res = await fetch("/api/admin/treatments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overwrite: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import mislukt");
+      setTreatments(data.treatments);
+      setMsg(`${data.imported} tarieven opnieuw opgehaald uit de afspraak-widget.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import mislukt");
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -90,6 +121,11 @@ export default function BehandelingenAdminPage() {
   };
 
   const missingPrices = treatments.filter((t) => !parseFloat((t.prijs || "").replace(",", "."))).length;
+  const groups = treatments.reduce<Record<string, Treatment[]>>((acc, t) => {
+    const key = t.categorie || "Overig";
+    (acc[key] ||= []).push(t);
+    return acc;
+  }, {});
 
   return (
     <div className="min-h-screen bg-brand-light pt-32 pb-20 px-6">
@@ -102,11 +138,12 @@ export default function BehandelingenAdminPage() {
         </Link>
         <h1 className="font-heading text-3xl mt-2 mb-2">Behandelingen &amp; tarieven</h1>
         <p className="text-brand-taupe text-sm mb-6">
-          Zet de salonprijzen hier (of in Google Sheet-tab <strong>{tab || "Behandelingen"}</strong>).
-          Daarna sync naar Shopify zodat je behandeling + sieraad in één keer kunt pinnen.
+          Prijzen komen automatisch uit <strong>Afspraak maken</strong> (Aimy).
+          Pas ze hier aan als je in de kassa een ander bedrag wilt pinnen.
+          Bron: Google Sheet-tab <strong>{tab || "Behandelingen"}</strong>.
         </p>
 
-        {loading && <p className="text-brand-taupe">Laden...</p>}
+        {loading && <p className="text-brand-taupe">Tarieven laden uit Aimy...</p>}
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
             {error}
@@ -120,30 +157,46 @@ export default function BehandelingenAdminPage() {
 
         {!loading && (
           <>
-            <div className="bg-white rounded-lg border border-brand-cream overflow-hidden mb-4">
-              {treatments.map((t) => (
-                <div
-                  key={t.barcode}
-                  className="flex items-center gap-3 p-3 border-b border-brand-cream last:border-b-0"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">{t.naam}</p>
-                    <p className="text-xs text-brand-taupe">
-                      {t.categorie}
-                      {t.duur ? ` · ${t.duur}` : ""} · {t.barcode}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm text-brand-taupe">€</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={t.prijs}
-                      onChange={(e) => setPrijs(t.barcode, e.target.value)}
-                      placeholder="0,00"
-                      className="w-20 px-2 py-1.5 text-sm bg-brand-light border border-brand-cream rounded focus:outline-none focus:border-brand-gold text-right"
-                    />
-                  </div>
+            <div className="space-y-5 mb-4">
+              {Object.entries(groups).map(([cat, items]) => (
+                <div key={cat} className="bg-white rounded-lg border border-brand-cream overflow-hidden">
+                  <p className="px-3 py-2 text-xs uppercase tracking-widest text-brand-taupe bg-brand-light/70">
+                    {cat}
+                  </p>
+                  {items.map((t) => {
+                    const range =
+                      t.prijsVan && t.prijsTot && t.prijsVan !== t.prijsTot
+                        ? `Aimy €${t.prijsVan}–€${t.prijsTot}`
+                        : t.prijsVan || t.prijsTot
+                        ? `Aimy €${t.prijsTot || t.prijsVan}`
+                        : "";
+                    return (
+                      <div
+                        key={t.barcode}
+                        className="flex items-center gap-3 p-3 border-t border-brand-cream"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{t.naam}</p>
+                          <p className="text-xs text-brand-taupe">
+                            {t.duur ? `${t.duur} · ` : ""}
+                            {t.barcode}
+                            {range ? ` · ${range}` : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-brand-taupe">€</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={t.prijs}
+                            onChange={(e) => setPrijs(t.barcode, e.target.value)}
+                            placeholder="0,00"
+                            className="w-20 px-2 py-1.5 text-sm bg-brand-light border border-brand-cream rounded focus:outline-none focus:border-brand-gold text-right"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </div>
@@ -151,13 +204,20 @@ export default function BehandelingenAdminPage() {
             {missingPrices > 0 && (
               <p className="text-xs text-orange-600 mb-4">
                 {missingPrices} behandeling{missingPrices !== 1 ? "en" : ""} zonder prijs —
-                die kun je nog niet aantikken op de telefoon.
+                die kun je nog niet aantikken in de kassa (vaak intakes).
               </p>
             )}
 
             <div className="flex flex-wrap gap-2">
               <button onClick={save} disabled={saving} className="btn-primary text-sm disabled:opacity-40">
                 {saving ? "Opslaan..." : "Prijzen opslaan"}
+              </button>
+              <button
+                onClick={importAimy}
+                disabled={importing}
+                className="px-4 py-2 text-sm rounded border border-brand-cream bg-white hover:border-brand-gold disabled:opacity-40"
+              >
+                {importing ? "Aimy..." : "Ververs uit afspraak-widget"}
               </button>
               <button
                 onClick={syncShopify}
@@ -167,10 +227,10 @@ export default function BehandelingenAdminPage() {
                 {syncing ? "Shopify..." : "Sync naar Shopify POS"}
               </button>
               <Link
-                href="/shop/code"
+                href="/admin/verkoop"
                 className="px-4 py-2 text-sm rounded border border-brand-cream bg-white hover:border-brand-gold"
               >
-                Open telefoonkassa
+                Naar kassa
               </Link>
             </div>
           </>
