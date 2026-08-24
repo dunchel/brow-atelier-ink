@@ -258,59 +258,49 @@ export default function SyncShopifyPage() {
         </p>
         <div className="text-xs text-brand-taupe mb-6 bg-white border border-brand-cream rounded-lg p-4 space-y-3">
           <p className="font-medium text-brand-dark">
-            Publicatie-rechten aanzetten: nieuwe versie in het Dev Dashboard
+            Nog één keer goedkeuren in de winkel
           </p>
           <p>
-            Scopes veranderen kan niet op de app-pagina in de winkel. Het gaat
-            via een nieuwe versie van de app <strong>Website Admin</strong> in
-            het Dev Dashboard.
+            De rechten staan al goed in versie 3.0 van de app{" "}
+            <strong>Website Admin</strong>. Een nieuwe versie geeft de winkel
+            die rechten alleen niet vanzelf: dat moet één keer worden
+            goedgekeurd. Tot dat gebeurd is, blijft{" "}
+            <strong>Zet op verkoopkanalen</strong> overgeslagen worden.
           </p>
           <ol className="list-decimal list-inside space-y-1.5">
             <li>
               Open{" "}
               <a
-                href="https://dev.shopify.com/dashboard"
+                href="https://admin.shopify.com/store/brow-atelier-ink/apps"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-brand-gold underline"
+                className="text-brand-gold underline break-all"
               >
-                dev.shopify.com/dashboard
-              </a>{" "}
-              → app <strong>Website Admin</strong> → tab{" "}
-              <strong>Versions</strong>.
+                admin.shopify.com/store/brow-atelier-ink/apps
+              </a>
             </li>
             <li>
-              Klik <strong>Create a version</strong>. Je krijgt hetzelfde
-              formulier als bij v2.0, al ingevuld.
+              Klik in de lijst op <strong>Website Admin</strong>.
             </li>
             <li>
-              Zoek het veld <strong>Scopes</strong> en zet er achteraan{" "}
-              <code>,read_publications,write_publications</code> bij. Wat er al
-              staat laat je staan.
+              Shopify laat een scherm zien met de rechten die de app erbij
+              wil. Klik <strong>Bijwerken</strong> / <strong>Update app</strong>{" "}
+              (of Goedkeuren). Komt dat scherm niet, klik de app dan nog een
+              keer aan.
             </li>
             <li>
-              Verander <strong>niets</strong> aan App URL, Redirect URLs,
-              Embedded of Webhooks api_version. Die moeten hetzelfde blijven
-              als in v2.0.
+              Kom hier terug en klik <strong>Controleer rechten</strong>. Die
+              moet groen worden.
             </li>
             <li>
-              Klik <strong>Release</strong> en bevestig. Er staat nu v2.1 op
-              Active.
-            </li>
-            <li>
-              Ga naar de winkel en open de app Website Admin. Shopify vraagt de
-              nieuwe rechten goed te keuren — klik akkoord. Zonder die
-              goedkeuring verandert er niets.
-            </li>
-            <li>
-              Kom hier terug, klik <strong>Controleer rechten</strong>. Groen?
-              Dan pas <strong>Zet op verkoopkanalen</strong>.
+              Klik daarna <strong>Zet op verkoopkanalen</strong> en laat hem
+              doorlopen.
             </li>
           </ol>
           <p>
-            Meestal blijft het bestaande Admin-token gewoon werken en is er
-            geen nieuw token nodig. Geeft Controleer rechten een tokenfout, dan
-            hoort het nieuwe token in Vercel als{" "}
+            Het bestaande Admin-token blijft hierbij gewoon geldig; er hoeft
+            geen nieuw token in Vercel. Geeft Controleer rechten wél een
+            tokenfout, dan hoort het nieuwe token in Vercel als{" "}
             <code>SHOPIFY_ADMIN_ACCESS_TOKEN</code> — niet in een chat of
             e-mail plakken.
           </p>

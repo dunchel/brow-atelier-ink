@@ -17,14 +17,23 @@ async function throttle() {
   lastCallAt = Date.now();
 }
 
+const RATE_LIMIT_PATTERN = /too many requests|throttled|rate limit|exceeded \d+ calls?/i;
+
+/**
+ * Alleen de foutvelden bekijken, nooit de hele respons. Zoeken op "429" in de
+ * ruwe JSON leverde false positives op: dat rijtje cijfers zit ook gewoon in
+ * Shopify-id's, waardoor een geslaagde call als rate limit werd geteld en het
+ * product als mislukt uit de sync kwam. De echte 429 vangen we op de
+ * HTTP-status af.
+ */
 export function isRateLimitError(data: unknown): boolean {
-  const text = JSON.stringify(data ?? "");
-  return (
-    text.includes("Exceeded") ||
-    text.includes("429") ||
-    text.includes("Too Many Requests") ||
-    text.includes("rate limit")
-  );
+  if (!data) return false;
+  if (typeof data === "string") return RATE_LIMIT_PATTERN.test(data);
+  if (Array.isArray(data)) return RATE_LIMIT_PATTERN.test(JSON.stringify(data));
+
+  const errors = (data as { errors?: unknown }).errors;
+  if (errors === undefined) return false;
+  return RATE_LIMIT_PATTERN.test(JSON.stringify(errors));
 }
 
 export function shopifyErrorMessage(data: unknown): string | null {

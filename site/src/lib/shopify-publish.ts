@@ -17,12 +17,12 @@ import { shopifyGraphql } from "./shopify-admin";
 
 /** Scope ontbreekt op het Admin-token; publiceren kan pas na aanpassen app. */
 export const MISSING_PUBLICATION_SCOPE =
-  "De app Website Admin mist nog read_publications en write_publications, dus " +
-  "nieuwe producten komen niet in het verkoopkanaal van de site. Maak een nieuwe " +
-  "versie in het Dev Dashboard (Website Admin → Versions → Create a version → " +
-  "scopes aanvullen → Release) en keur de nieuwe rechten daarna goed in de winkel. " +
-  "Klik hier dan Controleer rechten en pas daarna Zet op verkoopkanalen. " +
-  "Bestellen via de Shopify-winkelwagen blijft werken.";
+  "Het Admin-token heeft read_publications en write_publications nog niet, dus " +
+  "producten komen niet in het verkoopkanaal van de site. De rechten staan al in " +
+  "versie 3.0 van de app Website Admin; ze moeten alleen nog één keer goedgekeurd " +
+  "worden. Open admin.shopify.com/store/brow-atelier-ink/apps, klik Website Admin " +
+  "en bevestig de nieuwe rechten. Klik hier daarna Controleer rechten en pas dan " +
+  "Zet op verkoopkanalen. Bestellen via de Shopify-winkelwagen blijft werken.";
 
 export type PublishResult =
   | { status: "published"; channels: number }
