@@ -25,6 +25,15 @@ export default function SyncShopifyPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [checkingScopes, setCheckingScopes] = useState(false);
   const [scopeCheck, setScopeCheck] = useState<ScopeCheck | null>(null);
+  const [syncingStock, setSyncingStock] = useState(false);
+  const [stockSummary, setStockSummary] = useState<{
+    updated: number;
+    skipped: number;
+    notFound: number;
+    failed: number;
+    noStockInSheet: number;
+    location?: string;
+  } | null>(null);
   const [results, setResults] = useState<SyncResult[] | null>(null);
   const [summary, setSummary] = useState<{ total: number; created: number; skipped: number; failed: number } | null>(null);
   const [barcodeSummary, setBarcodeSummary] = useState<{
@@ -41,7 +50,70 @@ export default function SyncShopifyPage() {
   } | null>(null);
   const [catalogCount, setCatalogCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const busy = running || syncingBarcodes || publishing || refreshing || checkingScopes;
+  const busy =
+    running || syncingBarcodes || publishing || refreshing || checkingScopes || syncingStock;
+
+  const handleSyncStock = async () => {
+    setSyncingStock(true);
+    setError(null);
+    setResults([]);
+    setStockSummary(null);
+
+    let offset = 0;
+    const allResults: SyncResult[] = [];
+    let updated = 0;
+    let skipped = 0;
+    let notFound = 0;
+    let failed = 0;
+    let location: string | undefined;
+
+    try {
+      while (true) {
+        const res = await fetch("/api/admin/sync-inventory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ offset, batchSize: 1 }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          setError(data.error);
+          break;
+        }
+
+        location = data.location;
+        updated += data.summary.updated;
+        skipped += data.summary.skipped;
+        notFound += data.summary.notFound;
+        failed += data.summary.failed;
+        allResults.push(
+          ...data.results.map((r: { title: string; status: string; quantity?: number; error?: string }) => ({
+            title: r.quantity != null ? `${r.title} → ${r.quantity}` : r.title,
+            status: r.status,
+            error: r.error,
+          }))
+        );
+
+        setResults([...allResults]);
+        setStockSummary({
+          updated,
+          skipped,
+          notFound,
+          failed,
+          noStockInSheet: data.summary.noStockInSheet,
+          location,
+        });
+
+        if (!data.hasMore) break;
+        offset = data.nextOffset;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    } catch {
+      setError("Voorraad syncen mislukt. Probeer opnieuw.");
+    } finally {
+      setSyncingStock(false);
+    }
+  };
 
   const handleCheckScopes = async () => {
     setCheckingScopes(true);
@@ -325,6 +397,11 @@ export default function SyncShopifyPage() {
               voor de site-cart. Faalt dit op publications-rechten: bestellen
               via de Shopify-winkelwagen blijft werken.
             </li>
+            <li>
+              <strong>Voorraad syncen</strong> — zet het aantal uit de kolom
+              Voorraad in de Sheet op Shopify. Een lege voorraadcel wordt
+              overgeslagen, nooit op 0 gezet.
+            </li>
           </ul>
           <p>
             Oude Shopify-producten die niet in de Sheet staan: niet massaal
@@ -368,7 +445,42 @@ export default function SyncShopifyPage() {
           >
             {publishing ? "Kanalen zetten..." : "Zet op verkoopkanalen"}
           </button>
+          <button
+            onClick={handleSyncStock}
+            disabled={busy}
+            className="px-4 py-2 text-xs rounded border border-brand-cream bg-white hover:border-brand-gold disabled:opacity-50"
+          >
+            {syncingStock ? "Voorraad syncen..." : "Voorraad syncen"}
+          </button>
         </div>
+
+        {stockSummary && (
+          <div className="mb-8 grid grid-cols-4 gap-3">
+            <div className="bg-white rounded-lg border border-green-200 p-4 text-center">
+              <p className="font-heading text-2xl text-green-600">{stockSummary.updated}</p>
+              <p className="text-xs text-brand-taupe">Bijgewerkt</p>
+            </div>
+            <div className="bg-white rounded-lg border border-brand-cream p-4 text-center">
+              <p className="font-heading text-2xl">{stockSummary.skipped}</p>
+              <p className="text-xs text-brand-taupe">Al goed</p>
+            </div>
+            <div className="bg-white rounded-lg border border-orange-200 p-4 text-center">
+              <p className="font-heading text-2xl text-orange-600">{stockSummary.notFound}</p>
+              <p className="text-xs text-brand-taupe">Niet in Shopify</p>
+            </div>
+            <div className="bg-white rounded-lg border border-red-200 p-4 text-center">
+              <p className="font-heading text-2xl text-red-500">{stockSummary.failed}</p>
+              <p className="text-xs text-brand-taupe">Mislukt</p>
+            </div>
+            <p className="col-span-4 text-xs text-brand-taupe">
+              Locatie: {stockSummary.location ?? "onbekend"}.{" "}
+              {stockSummary.noStockInSheet} product
+              {stockSummary.noStockInSheet === 1 ? "" : "en"} overgeslagen omdat de
+              voorraadkolom in de Sheet leeg is — die blijven in Shopify staan zoals ze
+              stonden.
+            </p>
+          </div>
+        )}
 
         {scopeCheck && (
           <div

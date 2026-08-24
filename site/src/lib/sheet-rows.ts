@@ -21,6 +21,8 @@ export interface Product {
   images: string[];
   imageAlt: string;
   available: boolean;
+  /** Aantal uit de voorraadkolom. `null` = niets ingevuld, dus géén nul. */
+  stock: number | null;
 }
 
 export function slugify(text: string): string {
@@ -62,7 +64,8 @@ export function parseSheetRows(rows: string[][], categoryOverride?: string): Pro
         .filter(Boolean);
 
         const brand = get("merk") || get("brand") || get("merk/brand") || "";
-        const voorraad = get("voorraad");
+        const voorraad =
+          get("voorraad") || get("aantal") || get("stuks") || get("qty") || get("stock");
         const beschikbaar = get("beschikbaar") || get("available") || "";
         const category = categoryOverride || get("categorie") || get("category") || get("type");
 
@@ -88,6 +91,7 @@ export function parseSheetRows(rows: string[][], categoryOverride?: string): Pro
           images: [foto, foto2, foto3].filter(Boolean),
           imageAlt: get("foto alt") || get("image alt") || title,
           available: isAvailable,
+          stock,
       } as Product;
     })
     .filter((p): p is Product => p !== null);

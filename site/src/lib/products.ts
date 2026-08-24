@@ -136,6 +136,8 @@ function shopifyToProduct(sp: ShopifyProduct): Product {
     images: imgs.map((i) => i.url),
     imageAlt: imgs[0]?.altText || sp.title,
     available: true,
+    // Terugvalpad zonder Sheet: geen aantal bekend, dus niets te syncen.
+    stock: null,
   };
 }
 
