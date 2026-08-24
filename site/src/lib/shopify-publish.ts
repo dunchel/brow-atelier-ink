@@ -18,10 +18,11 @@ import { shopifyGraphql } from "./shopify-admin";
 /** Scope ontbreekt op het Admin-token; publiceren kan pas na aanpassen app. */
 export const MISSING_PUBLICATION_SCOPE =
   "De app Website Admin mist nog read_publications en write_publications, dus " +
-  "nieuwe producten komen niet in het verkoopkanaal van de site. Zet die aan via " +
-  "Instellingen → Apps → App-ontwikkeling → Apps in Dev Dashboard bouwen " +
-  "(of bij een oude app: Website Admin → Configuratie). Daarna hier opnieuw " +
-  "Zet op verkoopkanalen. Bestellen via de Shopify-winkelwagen blijft werken.";
+  "nieuwe producten komen niet in het verkoopkanaal van de site. Maak een nieuwe " +
+  "versie in het Dev Dashboard (Website Admin → Versions → Create a version → " +
+  "scopes aanvullen → Release) en keur de nieuwe rechten daarna goed in de winkel. " +
+  "Klik hier dan Controleer rechten en pas daarna Zet op verkoopkanalen. " +
+  "Bestellen via de Shopify-winkelwagen blijft werken.";
 
 export type PublishResult =
   | { status: "published"; channels: number }

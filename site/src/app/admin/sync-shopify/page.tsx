@@ -9,11 +9,22 @@ interface SyncResult {
   error?: string;
 }
 
+interface ScopeCheck {
+  ok: boolean;
+  error?: string;
+  app?: string | null;
+  scopes?: string[];
+  missing?: string[];
+  canPublish?: boolean;
+}
+
 export default function SyncShopifyPage() {
   const [running, setRunning] = useState(false);
   const [syncingBarcodes, setSyncingBarcodes] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [checkingScopes, setCheckingScopes] = useState(false);
+  const [scopeCheck, setScopeCheck] = useState<ScopeCheck | null>(null);
   const [results, setResults] = useState<SyncResult[] | null>(null);
   const [summary, setSummary] = useState<{ total: number; created: number; skipped: number; failed: number } | null>(null);
   const [barcodeSummary, setBarcodeSummary] = useState<{
@@ -30,7 +41,21 @@ export default function SyncShopifyPage() {
   } | null>(null);
   const [catalogCount, setCatalogCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const busy = running || syncingBarcodes || publishing || refreshing;
+  const busy = running || syncingBarcodes || publishing || refreshing || checkingScopes;
+
+  const handleCheckScopes = async () => {
+    setCheckingScopes(true);
+    setError(null);
+    setScopeCheck(null);
+    try {
+      const res = await fetch("/api/admin/shopify-scopes");
+      setScopeCheck(await res.json());
+    } catch {
+      setScopeCheck({ ok: false, error: "Rechten opvragen mislukt. Probeer opnieuw." });
+    } finally {
+      setCheckingScopes(false);
+    }
+  };
 
   const handleSync = async () => {
     setRunning(true);
@@ -233,58 +258,16 @@ export default function SyncShopifyPage() {
         </p>
         <div className="text-xs text-brand-taupe mb-6 bg-white border border-brand-cream rounded-lg p-4 space-y-3">
           <p className="font-medium text-brand-dark">
-            Verkoopkanalen: plak deze link (niet via Apps in het linkermenu)
+            Publicatie-rechten aanzetten: nieuwe versie in het Dev Dashboard
           </p>
           <p>
-            Shopify heeft het oude pad “Apps → App-ontwikkeling → Configuratie”
-            verplaatst. Dat tabblad staat niet op de gewone app-pagina, niet bij
-            POS en niet in de App Store.
+            Scopes veranderen kan niet op de app-pagina in de winkel. Het gaat
+            via een nieuwe versie van de app <strong>Website Admin</strong> in
+            het Dev Dashboard.
           </p>
           <ol className="list-decimal list-inside space-y-1.5">
             <li>
-              Plak in de adresbalk:{" "}
-              <a
-                href="https://admin.shopify.com/store/brow-atelier-ink/settings/apps"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-brand-gold underline break-all"
-              >
-                admin.shopify.com/store/brow-atelier-ink/settings/apps
-              </a>
-            </li>
-            <li>
-              Je ziet “Apps” of “Apps en verkoopkanalen”, met geïnstalleerde
-              apps. Klik bovenin op <strong>App-ontwikkeling</strong> /{" "}
-              <strong>Develop apps</strong>. Direct:{" "}
-              <a
-                href="https://admin.shopify.com/store/brow-atelier-ink/settings/apps/development"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-brand-gold underline"
-              >
-                …/settings/apps/development
-              </a>
-            </li>
-            <li>
-              Staat die knop er niet? Klik eerst{" "}
-              <strong>App-ontwikkeling toestaan</strong> /{" "}
-              <strong>Allow custom app development</strong> (winkeleigenaar).
-              Bevestig de waarschuwing.
-            </li>
-            <li>
-              Open de app <strong>Website Admin</strong>. Niet Point of Sale,
-              niet Online Store / thema, niet een app uit de App Store.
-            </li>
-            <li>
-              <strong>Pad A (2026):</strong> knop{" "}
-              <strong>Apps in Dev Dashboard bouwen</strong> /{" "}
-              <strong>Build apps in Dev Dashboard</strong> → Website Admin →
-              tab <strong>Versions</strong> → Access / Select scopes → zoek{" "}
-              <strong>publications</strong> → vink{" "}
-              <strong>read_publications</strong> en{" "}
-              <strong>write_publications</strong> → <strong>Release</strong>.
-              Daarna in de winkel de nieuwe rechten goedkeuren als Shopify dat
-              vraagt. Dev Dashboard ook via{" "}
+              Open{" "}
               <a
                 href="https://dev.shopify.com/dashboard"
                 target="_blank"
@@ -292,28 +275,44 @@ export default function SyncShopifyPage() {
                 className="text-brand-gold underline"
               >
                 dev.shopify.com/dashboard
-              </a>
-              .
+              </a>{" "}
+              → app <strong>Website Admin</strong> → tab{" "}
+              <strong>Versions</strong>.
             </li>
             <li>
-              <strong>Pad B (oude app):</strong> kopje “Verouderde aangepaste
-              apps” / Legacy custom apps → Website Admin →{" "}
-              <strong>Configuratie</strong> → Admin API-integratie → Bewerken
-              → dezelfde twee vinkjes → Opslaan → API-gegevens → App
-              (opnieuw) installeren. De app zelf niet verwijderen.
+              Klik <strong>Create a version</strong>. Je krijgt hetzelfde
+              formulier als bij v2.0, al ingevuld.
             </li>
             <li>
-              Kom hier terug en klik <strong>Zet op verkoopkanalen</strong>.
+              Zoek het veld <strong>Scopes</strong> en zet er achteraan{" "}
+              <code>,read_publications,write_publications</code> bij. Wat er al
+              staat laat je staan.
+            </li>
+            <li>
+              Verander <strong>niets</strong> aan App URL, Redirect URLs,
+              Embedded of Webhooks api_version. Die moeten hetzelfde blijven
+              als in v2.0.
+            </li>
+            <li>
+              Klik <strong>Release</strong> en bevestig. Er staat nu v2.1 op
+              Active.
+            </li>
+            <li>
+              Ga naar de winkel en open de app Website Admin. Shopify vraagt de
+              nieuwe rechten goed te keuren — klik akkoord. Zonder die
+              goedkeuring verandert er niets.
+            </li>
+            <li>
+              Kom hier terug, klik <strong>Controleer rechten</strong>. Groen?
+              Dan pas <strong>Zet op verkoopkanalen</strong>.
             </li>
           </ol>
           <p>
-            Zie je alleen een rode knop Verwijderen en een lijst rechten, zonder
-            Configuratie? Dan ben je op de geïnstalleerde app — dat is de
-            verkeerde plek. Gebruik pad A of B.
-          </p>
-          <p>
-            Krijgt Shopify een nieuwe Admin API-token? Niet in de chat plakken;
-            die hoort in Vercel als <code>SHOPIFY_ADMIN_ACCESS_TOKEN</code>.
+            Meestal blijft het bestaande Admin-token gewoon werken en is er
+            geen nieuw token nodig. Geeft Controleer rechten een tokenfout, dan
+            hoort het nieuwe token in Vercel als{" "}
+            <code>SHOPIFY_ADMIN_ACCESS_TOKEN</code> — niet in een chat of
+            e-mail plakken.
           </p>
         </div>
         <div className="text-xs text-brand-taupe mb-6 bg-white border border-brand-cream rounded-lg p-4 space-y-2">
@@ -343,7 +342,14 @@ export default function SyncShopifyPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3 mb-8">
+        <div className="flex flex-wrap gap-3 mb-4">
+          <button
+            onClick={handleCheckScopes}
+            disabled={busy}
+            className="px-4 py-2 text-xs rounded border border-brand-cream bg-white hover:border-brand-gold disabled:opacity-50"
+          >
+            {checkingScopes ? "Rechten ophalen..." : "Controleer rechten"}
+          </button>
           <button
             onClick={handleRefreshCatalog}
             disabled={busy}
@@ -373,6 +379,40 @@ export default function SyncShopifyPage() {
             {publishing ? "Kanalen zetten..." : "Zet op verkoopkanalen"}
           </button>
         </div>
+
+        {scopeCheck && (
+          <div
+            className={`mb-8 rounded-lg border p-4 text-sm ${
+              scopeCheck.canPublish
+                ? "bg-green-50 border-green-200 text-green-800"
+                : "bg-orange-50 border-orange-200 text-orange-800"
+            }`}
+          >
+            {!scopeCheck.ok ? (
+              <p>{scopeCheck.error}</p>
+            ) : scopeCheck.canPublish ? (
+              <p>
+                <strong>Rechten staan goed.</strong> De app{" "}
+                {scopeCheck.app ?? "Website Admin"} mag producten op
+                verkoopkanalen zetten. Klik nu Zet op verkoopkanalen.
+              </p>
+            ) : (
+              <p>
+                <strong>Nog niet compleet.</strong> De app{" "}
+                {scopeCheck.app ?? "Website Admin"} mist{" "}
+                {scopeCheck.missing?.join(" en ")}. Maak eerst een nieuwe
+                versie in het Dev Dashboard en keur de rechten goed in de
+                winkel (zie stappen hierboven).
+              </p>
+            )}
+            {scopeCheck.scopes?.length ? (
+              <p className="mt-2 text-xs opacity-75 break-all">
+                Huidige rechten: {scopeCheck.scopes.join(", ")}
+              </p>
+            ) : null}
+          </div>
+        )}
+
         {catalogCount !== null && (
           <p className="text-sm text-brand-taupe mb-4">
             Website toont nu {catalogCount} producten uit de Sheet.
