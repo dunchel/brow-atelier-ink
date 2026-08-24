@@ -26,6 +26,8 @@ export function Footer() {
             <Link href="/lashes" className="text-sm text-gray-300 hover:text-brand-gold transition-colors">Lashes</Link>
             <Link href="/shop" className="text-sm text-gray-300 hover:text-brand-gold transition-colors">Shop</Link>
             <Link href="/contact" className="text-sm text-gray-300 hover:text-brand-gold transition-colors">Contact</Link>
+            <Link href="/verzending" className="text-sm text-gray-300 hover:text-brand-gold transition-colors">Verzending</Link>
+            <Link href="/retourneren" className="text-sm text-gray-300 hover:text-brand-gold transition-colors">Retourneren</Link>
             <Link href="/privacy" className="text-sm text-gray-300 hover:text-brand-gold transition-colors">Privacy Policy</Link>
           </nav>
         </div>
