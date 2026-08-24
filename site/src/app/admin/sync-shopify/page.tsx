@@ -16,6 +16,9 @@ interface ScopeCheck {
   scopes?: string[];
   missing?: string[];
   canPublish?: boolean;
+  canSyncStock?: boolean;
+  missingInventory?: string[];
+  catalog?: { inShopify: number; storefrontReady: number } | null;
 }
 
 export default function SyncShopifyPage() {
@@ -507,6 +510,21 @@ export default function SyncShopifyPage() {
                 winkel (zie stappen hierboven).
               </p>
             )}
+            {scopeCheck.ok && !scopeCheck.canSyncStock ? (
+              <p className="mt-2">
+                Voorraad syncen kan ook nog niet: {scopeCheck.missingInventory?.join(", ")}{" "}
+                ontbreekt. Diezelfde goedkeuring zet dat in één keer goed.
+              </p>
+            ) : null}
+            {scopeCheck.catalog ? (
+              <p className="mt-2">
+                Verkoopkanaal: <strong>{scopeCheck.catalog.storefrontReady}</strong> van{" "}
+                {scopeCheck.catalog.inShopify} producten staan erop.{" "}
+                {scopeCheck.catalog.inShopify - scopeCheck.catalog.storefrontReady > 0
+                  ? `${scopeCheck.catalog.inShopify - scopeCheck.catalog.storefrontReady} producten sturen de klant nu naar de Shopify-winkelwagen.`
+                  : "Alles staat erop, de winkelwagen van de site werkt voor elk product."}
+              </p>
+            ) : null}
             {scopeCheck.scopes?.length ? (
               <p className="mt-2 text-xs opacity-75 break-all">
                 Huidige rechten: {scopeCheck.scopes.join(", ")}

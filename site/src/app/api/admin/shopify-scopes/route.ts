@@ -1,10 +1,29 @@
 import { NextResponse } from "next/server";
-import { shopifyGraphql } from "@/lib/shopify-admin";
+import { shopifyGraphql, shopifyRest } from "@/lib/shopify-admin";
 import { resetPublicationCache } from "@/lib/shopify-publish";
+import { countStorefrontProducts } from "@/lib/shopify";
 
 export const dynamic = "force-dynamic";
 
 const REQUIRED_FOR_PUBLISHING = ["read_publications", "write_publications"];
+const REQUIRED_FOR_INVENTORY = ["read_inventory", "write_inventory", "read_locations"];
+
+/**
+ * Hoeveel producten ziet de winkelwagen van de site? Alles wat Shopify wel
+ * kent maar het verkoopkanaal niet, stuurt de klant naar de Shopify-cart.
+ */
+async function catalogReadiness(): Promise<{ inShopify: number; storefrontReady: number } | null> {
+  try {
+    const [countData, storefrontReady] = await Promise.all([
+      shopifyRest("products/count.json"),
+      countStorefrontProducts(),
+    ]);
+    const inShopify = Number((countData as { count?: number }).count ?? 0);
+    return { inShopify, storefrontReady };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Welke rechten heeft het Admin-token dat deze site gebruikt? Shopify vult
@@ -40,11 +59,14 @@ export async function GET() {
 
     const scopes = (installation.accessScopes ?? []).map((s) => s.handle).sort();
     const missing = REQUIRED_FOR_PUBLISHING.filter((scope) => !scopes.includes(scope));
+    const missingInventory = REQUIRED_FOR_INVENTORY.filter((scope) => !scopes.includes(scope));
 
     // Een eerdere mislukte poging wordt in het geheugen onthouden. Zijn de
     // rechten er nu wel, dan moet die herinnering weg, anders blijft
     // publiceren overgeslagen worden tot de server herstart.
     if (missing.length === 0) resetPublicationCache();
+
+    const catalog = await catalogReadiness();
 
     return NextResponse.json({
       ok: true,
@@ -52,6 +74,9 @@ export async function GET() {
       scopes,
       missing,
       canPublish: missing.length === 0,
+      canSyncStock: missingInventory.length === 0,
+      missingInventory,
+      catalog,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Rechten opvragen mislukt";

@@ -149,6 +149,37 @@ export async function getProductByHandle(
   return data.productByHandle;
 }
 
+/**
+ * Aantal producten dat het verkoopkanaal van dit Storefront-token ziet. Alles
+ * daarbuiten kan de winkelwagen van de site niet vasthouden.
+ */
+export async function countStorefrontProducts(): Promise<number> {
+  if (!domain || !storefrontAccessToken) return 0;
+
+  let cursor: string | null = null;
+  let total = 0;
+
+  for (let page = 0; page < 8; page++) {
+    const data: {
+      products: { pageInfo: { hasNextPage: boolean; endCursor: string }; edges: { node: { id: string } }[] };
+    } = await shopifyFetch({
+      query: `query count($after: String) {
+        products(first: 250, after: $after) {
+          pageInfo { hasNextPage endCursor }
+          edges { node { id } }
+        }
+      }`,
+      variables: { after: cursor },
+    });
+
+    total += data.products.edges.length;
+    if (!data.products.pageInfo.hasNextPage) break;
+    cursor = data.products.pageInfo.endCursor;
+  }
+
+  return total;
+}
+
 export function formatPrice(amount: string, currencyCode = "EUR"): string {
   return new Intl.NumberFormat("nl-NL", {
     style: "currency",
