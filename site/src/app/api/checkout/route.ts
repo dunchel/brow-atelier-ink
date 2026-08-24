@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createCart, getVariantByProductTitle } from "@/lib/cart";
+import { createCart } from "@/lib/cart";
+import { resolveOrderableVariant } from "@/lib/shopify-catalog";
+
+export const runtime = "nodejs";
+
+function whatsappLink(productTitle: string) {
+  return `https://wa.me/31623747712?text=${encodeURIComponent(
+    `Hoi! Ik wil graag bestellen: ${productTitle}`
+  )}`;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,19 +18,30 @@ export async function POST(req: NextRequest) {
     let variantId = directVariantId;
 
     if (!variantId && productTitle) {
-      const result = await getVariantByProductTitle(productTitle);
-      if (!result) {
+      const result = await resolveOrderableVariant(productTitle);
+
+      if (result.status === "out_of_stock") {
         return NextResponse.json(
           {
-            error: "Product niet gevonden in Shopify. Neem contact op via WhatsApp.",
-            whatsapp: `https://wa.me/31623747712?text=${encodeURIComponent(
-              `Hoi! Ik wil graag bestellen: ${productTitle}`
-            )}`,
+            error: `${result.title} is momenteel uitverkocht.`,
+            outOfStock: true,
+            whatsapp: whatsappLink(result.title),
+          },
+          { status: 409 }
+        );
+      }
+
+      if (result.status === "unknown") {
+        return NextResponse.json(
+          {
+            error: "Product niet gevonden. Neem contact op via WhatsApp.",
+            whatsapp: whatsappLink(productTitle),
           },
           { status: 404 }
         );
       }
-      variantId = result.variantId;
+
+      variantId = result.ref.variantId;
     }
 
     if (!variantId) {

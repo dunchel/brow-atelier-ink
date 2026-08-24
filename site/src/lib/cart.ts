@@ -166,52 +166,44 @@ export async function removeCartLine(cartId: string, lineId: string): Promise<Ca
   return data.cartLinesRemove.cart;
 }
 
-export async function getVariantByProductTitle(title: string) {
-  const adminDomain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN!;
-  const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
-
-  if (adminToken) {
-    const res = await fetch(`https://${adminDomain}/admin/api/2024-01/products.json?title=${encodeURIComponent(title)}&limit=1`, {
-      headers: { "X-Shopify-Access-Token": adminToken },
-    });
-    const data = await res.json();
-    const product = data?.products?.[0];
-    if (product) {
-      const variant = product.variants?.[0];
-      if (variant) {
-        return { variantId: `gid://shopify/ProductVariant/${variant.id}`, productTitle: product.title };
-      }
-    }
-  }
-
-  const { data } = await storeFetch(
-    `query searchProducts($query: String!) {
-      products(first: 5, query: $query) {
-        edges {
-          node {
+/**
+ * Kan deze variant daadwerkelijk in een winkelwagen?
+ *
+ * De bestelflow zoekt het product op via de Admin API, maar `createCart` draait
+ * op de Storefront API. Die twee zien niet dezelfde catalogus: een product dat
+ * de Admin API teruggeeft, kan op het verkoopkanaal van de Storefront-app
+ * ontbreken. `cartCreate` antwoordt dan met "The merchandise with id ... does
+ * not exist", wat de klant als een onbegrijpelijke fout ziet. Door vóór het
+ * aanmaken van de cart te controleren of de Storefront de variant kent, wordt
+ * dat verschil zichtbaar en kan de aanroeper een bruikbare melding geven.
+ *
+ * @param variantId Globale variant-id (`gid://shopify/ProductVariant/...`).
+ * @returns "orderable" als de variant bestelbaar is, "sold_out" als de
+ *   Storefront hem kent maar niet verkoopt, "not_published" als de Storefront
+ *   hem niet kent, en "unknown" als de check zelf mislukt.
+ */
+export async function checkVariantOrderable(
+  variantId: string
+): Promise<"orderable" | "sold_out" | "not_published" | "unknown"> {
+  try {
+    const { data } = await storeFetch(
+      `query variantAvailability($id: ID!) {
+        node(id: $id) {
+          ... on ProductVariant {
             id
-            title
-            variants(first: 1) {
-              edges {
-                node {
-                  id
-                  price { amount currencyCode }
-                  availableForSale
-                }
-              }
-            }
+            availableForSale
           }
         }
-      }
-    }`,
-    { query: `title:"${title}"` }
-  );
+      }`,
+      { id: variantId }
+    );
 
-  const product = data?.products?.edges?.[0]?.node;
-  if (!product) return null;
-
-  const variant = product.variants.edges[0]?.node;
-  if (!variant) return null;
-
-  return { variantId: variant.id, productTitle: product.title };
+    const node = data?.node;
+    if (!node) return "not_published";
+    return node.availableForSale ? "orderable" : "sold_out";
+  } catch (err) {
+    // De check mag de bestelling niet blokkeren als Shopify zelf hapert.
+    console.error("[Shopify] Variantcontrole mislukt:", err);
+    return "unknown";
+  }
 }

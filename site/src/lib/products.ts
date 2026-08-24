@@ -6,32 +6,13 @@
 import { google } from "googleapis";
 import { getProducts as getShopifyProducts, type ShopifyProduct } from "./shopify";
 import { isTreatmentTabName } from "./treatments";
+import { parseSheetRows, slugify, type Product } from "./sheet-rows";
 
-export interface Product {
-  id: string;
-  handle: string;
-  title: string;
-  description: string;
-  price: string;
-  compareAtPrice?: string;
-  category: string;
-  brand: string;
-  tags: string[];
-  imageUrl: string;
-  images: string[];
-  imageAlt: string;
-  available: boolean;
-}
+export { parseSheetRows, slugify };
+export type { Product };
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const GOOGLE_CREDENTIALS_B64 = process.env.GOOGLE_CREDENTIALS_B64 || "";
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
 
 let sheetsClient: ReturnType<typeof google.sheets> | null = null;
 
@@ -53,64 +34,6 @@ function getSheetsClient() {
 
 let productCache: { data: Product[]; timestamp: number } | null = null;
 const CACHE_TTL = 60_000; // 1 minuut
-
-function parseSheetRows(rows: string[][], categoryOverride?: string): Product[] {
-  if (!rows || rows.length < 2) return [];
-
-  const headers: string[] = rows[0].map((h: string) => h.trim().toLowerCase());
-
-  return rows
-    .slice(1)
-    .map((row: string[], i: number) => {
-      const get = (key: string): string => {
-        const idx = headers.indexOf(key);
-        return idx >= 0 ? (row[idx] || "").trim() : "";
-      };
-
-      const title = get("naam") || get("title") || get("product");
-      if (!title) return null;
-
-      const foto = get("foto") || get("afbeelding") || get("image");
-      const foto2 = get("foto_2") || get("foto 2");
-      const foto3 = get("foto_3") || get("foto 3");
-
-      const tags = (get("tags") || "")
-        .split(/[,;]/)
-        .map((t: string) => t.trim())
-        .filter(Boolean);
-
-        const brand = get("merk") || get("brand") || get("merk/brand") || "";
-        const voorraad = get("voorraad");
-        const beschikbaar = get("beschikbaar") || get("available") || "";
-        const category = categoryOverride || get("categorie") || get("category") || get("type");
-
-        // Voorraad > 0 = beschikbaar, ongeacht de "beschikbaar" kolom
-        // Als voorraad leeg is, kijk naar beschikbaar kolom (fallback)
-        let isAvailable = true;
-        if (voorraad !== "") {
-          isAvailable = parseFloat(voorraad) > 0;
-        } else if (beschikbaar !== "") {
-          isAvailable = beschikbaar.toLowerCase() !== "nee";
-        }
-
-        return {
-          id: `sheet-${category}-${i}`,
-          handle: slugify(title),
-          title,
-          description: get("beschrijving") || get("description") || get("omschrijving"),
-          price: get("prijs") || get("price") || "0",
-          compareAtPrice: get("oude prijs") || get("was prijs") || get("compare at price") || undefined,
-          category,
-          brand,
-          tags,
-          imageUrl: foto,
-          images: [foto, foto2, foto3].filter(Boolean),
-          imageAlt: get("foto alt") || get("image alt") || title,
-          available: isAvailable,
-      } as Product;
-    })
-    .filter((p): p is Product => p !== null);
-}
 
 async function getProductsFromSheet(): Promise<Product[]> {
   if (!SHEET_ID || !GOOGLE_CREDENTIALS_B64) return [];

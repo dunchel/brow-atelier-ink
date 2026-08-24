@@ -1,68 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllProducts } from "@/lib/products";
 import { getAllInventoryProducts } from "@/lib/sheet-inventory";
-import { isRateLimitError, shopifyErrorMessage, shopifyRest } from "@/lib/shopify-admin";
-
-interface ShopifyProductRow {
-  id: number;
-  title: string;
-}
-
-async function findProduct(title: string): Promise<ShopifyProductRow | null> {
-  const data = await shopifyRest(
-    `products.json?title=${encodeURIComponent(title)}&limit=5`
-  );
-  const products = (data?.products ?? []) as ShopifyProductRow[];
-  const t = title.trim().toLowerCase();
-  return products.find((p) => p.title.trim().toLowerCase() === t) ?? null;
-}
-
-async function createProduct(product: {
-  title: string;
-  description: string;
-  price: string;
-  compareAtPrice?: string;
-  imageUrl: string;
-  images: string[];
-  tags: string[];
-  category: string;
-  barcode?: string;
-}) {
-  const price = product.price.replace(",", ".");
-  const compareAtPrice = product.compareAtPrice?.replace(",", ".") || undefined;
-
-  const imgSrcs = product.images.filter(Boolean).map((src) => ({ src }));
-  if (imgSrcs.length === 0 && product.imageUrl) {
-    imgSrcs.push({ src: product.imageUrl });
-  }
-
-  const data = await shopifyRest("products.json", "POST", {
-    product: {
-      title: product.title,
-      body_html: product.description,
-      product_type: product.category,
-      tags: product.tags.join(", "),
-      status: "active",
-      variants: [
-        {
-          price,
-          ...(compareAtPrice ? { compare_at_price: compareAtPrice } : {}),
-          ...(product.barcode
-            ? { barcode: product.barcode, sku: product.barcode }
-            : {}),
-          inventory_management: null,
-          inventory_policy: "continue",
-        },
-      ],
-      images: imgSrcs,
-    },
-  });
-
-  const err = shopifyErrorMessage(data);
-  if (err) throw new Error(err);
-
-  return data?.product;
-}
+import { isRateLimitError } from "@/lib/shopify-admin";
+import { createShopifyProduct, findShopifyProductByTitle } from "@/lib/shopify-catalog";
+import { normalizeTitle } from "@/lib/product-match";
 
 export async function POST(req: NextRequest) {
   try {
@@ -74,7 +15,7 @@ export async function POST(req: NextRequest) {
     const allProducts = await getAllProducts();
     const inventory = await getAllInventoryProducts();
     const barcodeByTitle = new Map(
-      inventory.map((p) => [p.naam.trim().toLowerCase(), p.barcode])
+      inventory.map((p) => [normalizeTitle(p.naam), p.barcode])
     );
 
     if (allProducts.length === 0) {
@@ -90,16 +31,16 @@ export async function POST(req: NextRequest) {
 
     for (const product of batch) {
       try {
-        const existing = await findProduct(product.title);
+        const existing = await findShopifyProductByTitle(product.title);
         if (existing) {
           results.push({ title: product.title, status: "exists" });
           skipped++;
           continue;
         }
 
-        await createProduct({
+        await createShopifyProduct({
           ...product,
-          barcode: barcodeByTitle.get(product.title.trim().toLowerCase()),
+          barcode: barcodeByTitle.get(normalizeTitle(product.title)),
         });
         results.push({ title: product.title, status: "created" });
         created++;

@@ -15,27 +15,26 @@ export function BuyButton({ productTitle, variantId }: BuyButtonProps) {
   const [added, setAdded] = useState(false);
   const { addItem } = useCart();
 
-  const resolveVariantId = async (): Promise<string | null> => {
-    if (variantId) return variantId;
+  const resolveVariant = async (): Promise<{ variantId?: string; error?: string }> => {
+    if (variantId) return { variantId };
     const res = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ productTitle, resolveOnly: true }),
     });
     const data = await res.json();
-    return data.variantId ?? null;
+    if (data.variantId) return { variantId: data.variantId };
+    return { error: data.error || "Product niet gevonden." };
   };
 
   const handleAddToCart = async () => {
     setLoading(true);
     setError(null);
     try {
-      let vid = variantId;
+      const resolved = await resolveVariant();
+      const vid = resolved.variantId;
       if (!vid) {
-        vid = (await resolveVariantId()) ?? undefined;
-      }
-      if (!vid) {
-        setError("Product niet gevonden in Shopify.");
+        setError(resolved.error ?? "Product niet gevonden.");
         return;
       }
       await addItem(vid, quantity);
@@ -61,7 +60,7 @@ export function BuyButton({ productTitle, variantId }: BuyButtonProps) {
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else if (data.whatsapp) {
-        setError("Dit product is nog niet online te bestellen.");
+        setError(data.error || "Dit product is nu niet online te bestellen.");
         setTimeout(() => window.open(data.whatsapp, "_blank"), 1500);
       } else {
         setError(data.error || "Er ging iets mis.");
