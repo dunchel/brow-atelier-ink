@@ -35,20 +35,36 @@ interface Publication {
 }
 
 let publicationCache: { ids: Publication[]; timestamp: number } | null = null;
-let scopeError: string | null = null;
+let scopeError: { message: string; timestamp: number } | null = null;
 const PUBLICATION_CACHE_TTL = 10 * 60_000;
+/**
+ * Kort, zodat een sync-run niet elke batch opnieuw een kansloze call doet,
+ * maar publiceren wél vanzelf weer werkt zodra de rechten zijn goedgekeurd.
+ */
+const SCOPE_ERROR_TTL = 60_000;
+
+function rememberScopeError(): string {
+  scopeError = { message: MISSING_PUBLICATION_SCOPE, timestamp: Date.now() };
+  return MISSING_PUBLICATION_SCOPE;
+}
+
+function recentScopeError(): string | null {
+  if (!scopeError) return null;
+  if (Date.now() - scopeError.timestamp >= SCOPE_ERROR_TTL) {
+    scopeError = null;
+    return null;
+  }
+  return scopeError.message;
+}
 
 function isMissingScope(errors?: { message: string }[]): boolean {
   return (errors ?? []).some((e) => /access denied|write_publications|read_publications/i.test(e.message));
 }
 
-/**
- * De verkoopkanalen waar deze app producten op mag zetten. Leeg zolang de
- * scope ontbreekt; dat wordt onthouden zodat elke sync-batch niet opnieuw een
- * kansloze call doet.
- */
+/** De verkoopkanalen waar deze app producten op mag zetten. */
 export async function getPublications(): Promise<{ publications: Publication[]; error: string | null }> {
-  if (scopeError) return { publications: [], error: scopeError };
+  const remembered = recentScopeError();
+  if (remembered) return { publications: [], error: remembered };
 
   if (publicationCache && Date.now() - publicationCache.timestamp < PUBLICATION_CACHE_TTL) {
     return { publications: publicationCache.ids, error: null };
@@ -61,8 +77,7 @@ export async function getPublications(): Promise<{ publications: Publication[]; 
   }`);
 
   if (isMissingScope(res.errors)) {
-    scopeError = MISSING_PUBLICATION_SCOPE;
-    return { publications: [], error: scopeError };
+    return { publications: [], error: rememberScopeError() };
   }
 
   if (res.errors?.length) {
@@ -103,8 +118,7 @@ export async function publishProduct(productId: number | string): Promise<Publis
   );
 
   if (isMissingScope(res.errors)) {
-    scopeError = MISSING_PUBLICATION_SCOPE;
-    return { status: "skipped", reason: scopeError };
+    return { status: "skipped", reason: rememberScopeError() };
   }
 
   if (res.errors?.length) return { status: "failed", reason: res.errors[0].message };
