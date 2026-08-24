@@ -7,6 +7,7 @@ interface CartContextType {
   cart: Cart | null;
   loading: boolean;
   isOpen: boolean;
+  error: string | null;
   itemCount: number;
   addItem: (variantId: string, quantity?: number) => Promise<void>;
   updateItem: (lineId: string, quantity: number) => Promise<void>;
@@ -29,6 +30,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const itemCount = cart?.totalQuantity ?? 0;
 
@@ -55,6 +57,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback(async (variantId: string, quantity = 1) => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/cart", {
         method: "POST",
@@ -69,9 +72,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (data.cart) {
         saveCart(data.cart);
         setIsOpen(true);
-      } else {
-        throw new Error(data.error || "Fout bij toevoegen");
+        return;
       }
+      throw new Error(data.error || "Kon niet toevoegen aan winkelwagen.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Kon niet toevoegen aan winkelwagen.";
+      setError(message);
+      setIsOpen(true);
+      throw err instanceof Error ? err : new Error(message);
     } finally {
       setLoading(false);
     }
@@ -115,12 +123,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         cart,
         loading,
         isOpen,
+        error,
         itemCount,
         addItem,
         updateItem,
         removeItem,
         openCart: () => setIsOpen(true),
-        closeCart: () => setIsOpen(false),
+        closeCart: () => {
+          setIsOpen(false);
+          setError(null);
+        },
       }}
     >
       {children}

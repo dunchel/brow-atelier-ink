@@ -151,7 +151,7 @@ export async function getProductByHandle(
 
 /**
  * Aantal producten dat het verkoopkanaal van dit Storefront-token ziet. Alles
- * daarbuiten kan de winkelwagen van de site niet vasthouden.
+ * daarbuiten kan de site-cart niet vasthouden tot het op het kanaal staat.
  */
 export async function countStorefrontProducts(): Promise<number> {
   if (!domain || !storefrontAccessToken) return 0;

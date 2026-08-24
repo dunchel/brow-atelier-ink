@@ -10,7 +10,7 @@ const REQUIRED_FOR_INVENTORY = ["read_inventory", "write_inventory", "read_locat
 
 /**
  * Hoeveel producten ziet de winkelwagen van de site? Alles wat Shopify wel
- * kent maar het verkoopkanaal niet, stuurt de klant naar de Shopify-cart.
+ * kent maar het verkoopkanaal niet, kan niet in de site-cart.
  */
 async function catalogReadiness(): Promise<{ inShopify: number; storefrontReady: number } | null> {
   try {

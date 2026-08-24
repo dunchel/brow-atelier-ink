@@ -397,8 +397,8 @@ export default function SyncShopifyPage() {
             </li>
             <li>
               <strong>Zet op verkoopkanalen</strong> — maakt producten zichtbaar
-              voor de site-cart. Faalt dit op publications-rechten: bestellen
-              via de Shopify-winkelwagen blijft werken.
+              voor de site-cart. Faalt dit op publications-rechten: In
+              winkelwagen toont een melding; Koop nu gaat nog naar checkout.
             </li>
             <li>
               <strong>Voorraad syncen</strong> — zet het aantal uit de kolom
@@ -521,7 +521,7 @@ export default function SyncShopifyPage() {
                 Verkoopkanaal: <strong>{scopeCheck.catalog.storefrontReady}</strong> van{" "}
                 {scopeCheck.catalog.inShopify} producten staan erop.{" "}
                 {scopeCheck.catalog.inShopify - scopeCheck.catalog.storefrontReady > 0
-                  ? `${scopeCheck.catalog.inShopify - scopeCheck.catalog.storefrontReady} producten sturen de klant nu naar de Shopify-winkelwagen.`
+                  ? `${scopeCheck.catalog.inShopify - scopeCheck.catalog.storefrontReady} producten kunnen nog niet in de site-winkelwagen.`
                   : "Alles staat erop, de winkelwagen van de site werkt voor elk product."}
               </p>
             ) : null}

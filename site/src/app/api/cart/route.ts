@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getCart,
-  createCart,
-  addToCart,
-  updateCartLine,
-  removeCartLine,
-} from "@/lib/cart";
+import { getCart, updateCartLine, removeCartLine } from "@/lib/cart";
+import { addCartLine } from "@/lib/cart-add";
 
 export async function GET(req: NextRequest) {
   const cartId = req.nextUrl.searchParams.get("cartId");
@@ -29,17 +24,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Geen variantId opgegeven" }, { status: 400 });
     }
 
-    let cart;
-    if (cartId) {
-      cart = await addToCart(cartId, variantId, quantity);
-    } else {
-      cart = await createCart(variantId, quantity);
-    }
-
+    const cart = await addCartLine(cartId, variantId, quantity);
     return NextResponse.json({ cart });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Fout bij toevoegen aan winkelwagen";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Kon niet toevoegen aan winkelwagen. Probeer het opnieuw.";
+    const status = /niet in je mandje|niet op het verkoopkanaal/i.test(message) ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
 

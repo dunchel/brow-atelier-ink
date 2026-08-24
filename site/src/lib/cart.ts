@@ -172,13 +172,27 @@ export function variantNumericId(variantId: string): string {
   return match ? match[1] : "";
 }
 
+/** Shopify weigert de Storefront-cart als het product niet op dat kanaal staat. */
+export function isMerchandiseMissingError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  return /merchandise .* does not exist/i.test(message);
+}
+
+/** Klanttekst: In winkelwagen blijft op de site, nooit stil naar checkout. */
+export const CART_ADD_UNAVAILABLE_MESSAGE =
+  "Dit product kon niet in je mandje. Het staat nog niet op het verkoopkanaal van de webshop. Gebruik Koop nu, of zet het product op verkoopkanalen via Admin → Sync Shopify.";
+
+export function forgetStorefrontVariant(variantId: string) {
+  storefrontVariantCache.delete(variantId);
+}
+
 /**
- * Checkout-link buiten de Storefront-API om.
+ * Checkout-link buiten de Storefront-API om — alleen voor Koop nu / Afrekenen.
  *
  * Producten die de sync aanmaakt staan wel op de Online Store, maar niet in
  * het verkoopkanaal van het Storefront-token. `cartCreate` weigert ze dan met
- * "The merchandise with id ... does not exist". Deze permalink laat Shopify
- * zelf de winkelwagen vullen en werkt voor elk product in de winkel.
+ * "The merchandise with id ... does not exist". In winkelwagen mag deze URL
+ * niet gebruiken; die blijft op de site. Koop nu mag wél naar checkout.
  */
 export function buildDirectCheckoutUrl(
   variantId: string,
@@ -197,9 +211,8 @@ const storefrontVariantCache = new Map<string, { ok: boolean; timestamp: number 
 const STOREFRONT_CHECK_TTL = 5 * 60_000;
 
 /**
- * Kan de Storefront-API deze variant überhaupt in een winkelwagen leggen? Zo
- * niet, dan hangt het product niet aan het verkoopkanaal van dit token en moet
- * de bestelflow via de Online Store lopen.
+ * Kan de Storefront-API deze variant in de site-cart leggen? Zo niet, dan
+ * hangt het product niet aan het verkoopkanaal van dit token.
  */
 export async function isVariantInStorefront(variantId: string): Promise<boolean> {
   const cached = storefrontVariantCache.get(variantId);

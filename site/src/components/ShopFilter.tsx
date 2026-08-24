@@ -168,14 +168,10 @@ function ActionButtons({
   variant: "overlay" | "inline";
 }) {
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<"idle" | "added" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "added" | "missing" | "failed">("idle");
   const { addItem } = useCart();
 
-  const resolveVariant = async (): Promise<{
-    variantId?: string;
-    storefrontReady?: boolean;
-    directCheckoutUrl?: string | null;
-  }> => {
+  const resolveVariant = async (): Promise<{ variantId?: string }> => {
     const res = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -192,17 +188,12 @@ function ActionButtons({
     try {
       const resolved = await resolveVariant();
       const vid = resolved.variantId;
-      if (!vid) { setStatus("error"); setTimeout(() => setStatus("idle"), 2000); return; }
-      // Buiten het verkoopkanaal: via de winkelwagen van Shopify zelf.
-      if (resolved.storefrontReady === false && resolved.directCheckoutUrl) {
-        window.location.href = resolved.directCheckoutUrl;
-        return;
-      }
+      if (!vid) { setStatus("missing"); setTimeout(() => setStatus("idle"), 2000); return; }
       await addItem(vid, 1);
       setStatus("added");
       setTimeout(() => setStatus("idle"), 2000);
     } catch {
-      setStatus("error");
+      setStatus("failed");
       setTimeout(() => setStatus("idle"), 2000);
     } finally {
       setLoading(false);
@@ -236,7 +227,7 @@ function ActionButtons({
           disabled={loading}
           className="flex-1 py-2 text-[10px] uppercase tracking-wide font-medium bg-white/90 text-brand-dark hover:bg-brand-gold hover:text-white transition-colors rounded disabled:opacity-60 leading-none"
         >
-          {loading ? "..." : status === "added" ? "Toegevoegd" : status === "error" ? "Niet gevonden" : "+ Winkelmand"}
+          {loading ? "..." : status === "added" ? "Toegevoegd" : status === "missing" ? "Niet gevonden" : status === "failed" ? "Mislukt" : "+ Winkelmand"}
         </button>
         <button
           onClick={handleBuyNow}
@@ -257,7 +248,7 @@ function ActionButtons({
         disabled={loading}
         className="flex-1 py-2.5 text-xs uppercase tracking-widest font-medium border border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-white transition-colors rounded disabled:opacity-60"
       >
-        {loading ? "..." : status === "added" ? "Toegevoegd!" : status === "error" ? "Niet gevonden" : "In winkelmand"}
+        {loading ? "..." : status === "added" ? "Toegevoegd!" : status === "missing" ? "Niet gevonden" : status === "failed" ? "Mislukt" : "In winkelmand"}
       </button>
       <button
         onClick={handleBuyNow}

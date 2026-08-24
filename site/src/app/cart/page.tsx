@@ -11,7 +11,7 @@ function formatPrice(amount: string, currencyCode = "EUR") {
 }
 
 export default function CartPage() {
-  const { cart, loading, updateItem, removeItem } = useCart();
+  const { cart, loading, updateItem, removeItem, error } = useCart();
   const lines = cart?.lines.edges.map((e) => e.node) ?? [];
 
   return (
@@ -27,6 +27,14 @@ export default function CartPage() {
 
       <section className="section-padding bg-white">
         <div className="max-w-4xl mx-auto">
+          {error && (
+            <p
+              role="alert"
+              className="mb-6 p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded"
+            >
+              {error}
+            </p>
+          )}
           {lines.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-brand-taupe mb-6 text-lg">Je winkelwagen is leeg.</p>

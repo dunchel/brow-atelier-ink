@@ -9,8 +9,8 @@
  * alleen via Admin GraphQL, en alleen met de scope `write_publications`.
  *
  * Heeft het token die scope niet, dan mag de sync daar niet op stukvallen:
- * we melden het en laten de checkout terugvallen op de Online Store (zie
- * `buildDirectCheckoutUrl` in cart.ts).
+ * we melden het. Koop nu valt terug op de Online Store; In winkelwagen
+ * blijft op de site en toont een melding.
  */
 
 import { shopifyGraphql } from "./shopify-admin";

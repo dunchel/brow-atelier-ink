@@ -15,15 +15,7 @@ export function BuyButton({ productTitle, variantId }: BuyButtonProps) {
   const [added, setAdded] = useState(false);
   const { addItem } = useCart();
 
-  interface Resolved {
-    variantId?: string;
-    /** False als het product buiten het verkoopkanaal van de site valt. */
-    storefrontReady?: boolean;
-    directCheckoutUrl?: string | null;
-    error?: string;
-  }
-
-  const resolveVariant = async (): Promise<Resolved> => {
+  const resolveVariant = async (): Promise<{ variantId?: string; error?: string }> => {
     const res = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -44,17 +36,11 @@ export function BuyButton({ productTitle, variantId }: BuyButtonProps) {
         setError(resolved.error ?? "Product niet gevonden.");
         return;
       }
-      // Producten buiten het verkoopkanaal kan de eigen winkelwagen niet
-      // vasthouden; die gaan naar de winkelwagen van Shopify zelf.
-      if (resolved.storefrontReady === false && resolved.directCheckoutUrl) {
-        window.location.href = resolved.directCheckoutUrl;
-        return;
-      }
       await addItem(vid, quantity);
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
-    } catch {
-      setError("Kon niet toevoegen aan winkelwagen.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kon niet toevoegen aan winkelwagen.");
     } finally {
       setLoading(false);
     }

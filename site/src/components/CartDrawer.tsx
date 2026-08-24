@@ -12,7 +12,7 @@ function formatPrice(amount: string, currencyCode = "EUR") {
 }
 
 export function CartDrawer() {
-  const { cart, isOpen, closeCart, updateItem, removeItem, loading } = useCart();
+  const { cart, isOpen, closeCart, updateItem, removeItem, loading, error } = useCart();
   const lines = cart?.lines.edges.map((e) => e.node) ?? [];
 
   useEffect(() => {
@@ -43,6 +43,15 @@ export function CartDrawer() {
             &times;
           </button>
         </div>
+
+        {error && (
+          <p
+            role="alert"
+            className="mx-6 mt-4 p-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded"
+          >
+            {error}
+          </p>
+        )}
 
         {lines.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">

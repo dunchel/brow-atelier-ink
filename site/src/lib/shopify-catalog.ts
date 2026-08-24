@@ -24,6 +24,7 @@ export interface ShopifyProductRow {
 export interface VariantRef {
   variantId: string;
   productTitle: string;
+  productId: number;
 }
 
 /** Resolved varianten kort onthouden; Shopify staat maar 2 calls/sec toe. */
@@ -36,6 +37,7 @@ function toVariantRef(product: ShopifyProductRow): VariantRef | null {
   return {
     variantId: `gid://shopify/ProductVariant/${variant.id}`,
     productTitle: product.title,
+    productId: product.id,
   };
 }
 
@@ -56,6 +58,15 @@ export async function listShopifyProductsPage(
   const products = ((data as { products?: ShopifyProductRow[] }).products ?? []) as ShopifyProductRow[];
   const last = products[products.length - 1];
   return { products, nextSinceId: last ? last.id : null };
+}
+
+/** Admin-product-id bij een Storefront-variant, om hem op het kanaal te zetten. */
+export async function productIdFromVariant(variantId: string): Promise<number | null> {
+  const numeric = (variantId || "").match(/(\d+)$/)?.[1];
+  if (!numeric) return null;
+  const data = await shopifyRest(`variants/${numeric}.json?fields=id,product_id`);
+  const productId = (data as { variant?: { product_id?: number } }).variant?.product_id;
+  return typeof productId === "number" ? productId : null;
 }
 
 /**
@@ -213,8 +224,9 @@ export async function resolveOrderableVariant(title: string): Promise<ResolveRes
       variantCache.set(normalizeTitle(wanted), { ref, timestamp: Date.now() });
       variantCache.set(normalizeTitle(canonicalTitle), { ref, timestamp: Date.now() });
       // Bestaande producten uit de REST-sync hangen vaak niet aan het
-      // verkoopkanaal. Lukt publiceren niet (scope), dan gaat checkout via
-      // de Online Store. Lukt het wel, dan werkt de eigen winkelwagen.
+      // verkoopkanaal. Lukt publiceren, dan werkt de site-cart. Lukt het
+      // niet, dan blijft In winkelwagen op de site (melding) en gaat Koop
+      // nu via de Online Store.
       void publishProduct(existing.id);
       return { status: "ok", ref, created: false };
     }

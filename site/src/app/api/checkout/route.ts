@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildDirectCheckoutUrl, createCart, isVariantInStorefront } from "@/lib/cart";
+import { buildDirectCheckoutUrl, createCart } from "@/lib/cart";
 import { resolveOrderableVariant } from "@/lib/shopify-catalog";
 
 export const runtime = "nodejs";
@@ -48,19 +48,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Geen product opgegeven" }, { status: 400 });
     }
 
-    const directUrl = buildDirectCheckoutUrl(variantId, quantity);
-
-    // Staat het product niet in het verkoopkanaal van dit Storefront-token,
-    // dan kan de eigen winkelwagen de variant niet vasthouden en bestelt de
-    // klant via de Online Store.
+    // Alleen het variant-id; In winkelwagen mag nooit een checkout-URL krijgen.
     if (resolveOnly) {
-      const storefrontReady = await isVariantInStorefront(variantId);
-      return NextResponse.json({
-        variantId,
-        storefrontReady,
-        directCheckoutUrl: buildDirectCheckoutUrl(variantId, quantity, { returnTo: "/cart" }),
-      });
+      return NextResponse.json({ variantId });
     }
+
+    const directUrl = buildDirectCheckoutUrl(variantId, quantity);
 
     try {
       const cart = await createCart(variantId, quantity);
