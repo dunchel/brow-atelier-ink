@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     "Shop de mooiste beauty producten en statement pieces bij Brow Atelier & Ink. Brow producten, verzorging, sieraden en meer.",
 };
 
-export const revalidate = 300;
+export const revalidate = 60;
 
 export default async function ShopPage() {
   let products: Awaited<ReturnType<typeof getAllProducts>> = [];

@@ -1,37 +1,19 @@
 /**
  * Product data source: reads from a private Google Sheet via Google Sheets API.
- * Falls back to Shopify Storefront API if not configured.
+ * Falls back to Shopify Storefront API only if the Sheet is not configured.
  */
 
+import { unstable_cache } from "next/cache";
 import { google } from "googleapis";
 import { getProducts as getShopifyProducts, type ShopifyProduct } from "./shopify";
 import { isTreatmentTabName } from "./treatments";
+import { parseSheetRows, slugify, tabNameFromRange, type Product } from "./sheet-rows";
 
-export interface Product {
-  id: string;
-  handle: string;
-  title: string;
-  description: string;
-  price: string;
-  compareAtPrice?: string;
-  category: string;
-  brand: string;
-  tags: string[];
-  imageUrl: string;
-  images: string[];
-  imageAlt: string;
-  available: boolean;
-}
+export { parseSheetRows, slugify };
+export type { Product };
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const GOOGLE_CREDENTIALS_B64 = process.env.GOOGLE_CREDENTIALS_B64 || "";
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
 
 let sheetsClient: ReturnType<typeof google.sheets> | null = null;
 
@@ -51,108 +33,91 @@ function getSheetsClient() {
   return sheetsClient;
 }
 
-let productCache: { data: Product[]; timestamp: number } | null = null;
-const CACHE_TTL = 60_000; // 1 minuut
-
-function parseSheetRows(rows: string[][], categoryOverride?: string): Product[] {
-  if (!rows || rows.length < 2) return [];
-
-  const headers: string[] = rows[0].map((h: string) => h.trim().toLowerCase());
-
-  return rows
-    .slice(1)
-    .map((row: string[], i: number) => {
-      const get = (key: string): string => {
-        const idx = headers.indexOf(key);
-        return idx >= 0 ? (row[idx] || "").trim() : "";
-      };
-
-      const title = get("naam") || get("title") || get("product");
-      if (!title) return null;
-
-      const foto = get("foto") || get("afbeelding") || get("image");
-      const foto2 = get("foto_2") || get("foto 2");
-      const foto3 = get("foto_3") || get("foto 3");
-
-      const tags = (get("tags") || "")
-        .split(/[,;]/)
-        .map((t: string) => t.trim())
-        .filter(Boolean);
-
-        const brand = get("merk") || get("brand") || get("merk/brand") || "";
-        const voorraad = get("voorraad");
-        const beschikbaar = get("beschikbaar") || get("available") || "";
-        const category = categoryOverride || get("categorie") || get("category") || get("type");
-
-        // Voorraad > 0 = beschikbaar, ongeacht de "beschikbaar" kolom
-        // Als voorraad leeg is, kijk naar beschikbaar kolom (fallback)
-        let isAvailable = true;
-        if (voorraad !== "") {
-          isAvailable = parseFloat(voorraad) > 0;
-        } else if (beschikbaar !== "") {
-          isAvailable = beschikbaar.toLowerCase() !== "nee";
-        }
-
-        return {
-          id: `sheet-${category}-${i}`,
-          handle: slugify(title),
-          title,
-          description: get("beschrijving") || get("description") || get("omschrijving"),
-          price: get("prijs") || get("price") || "0",
-          compareAtPrice: get("oude prijs") || get("was prijs") || get("compare at price") || undefined,
-          category,
-          brand,
-          tags,
-          imageUrl: foto,
-          images: [foto, foto2, foto3].filter(Boolean),
-          imageAlt: get("foto alt") || get("image alt") || title,
-          available: isAvailable,
-      } as Product;
-    })
-    .filter((p): p is Product => p !== null);
+function isSheetConfigured(): boolean {
+  return Boolean(SHEET_ID && GOOGLE_CREDENTIALS_B64);
 }
 
-async function getProductsFromSheet(): Promise<Product[]> {
-  if (!SHEET_ID || !GOOGLE_CREDENTIALS_B64) return [];
+/** Process-geheugen: vangt een 429 op dezelfde warme instance op. */
+let staleCache: { data: Product[]; timestamp: number } | null = null;
+let inflight: Promise<Product[]> | null = null;
+const STALE_TTL = 30 * 60_000;
 
-  if (productCache && Date.now() - productCache.timestamp < CACHE_TTL) {
-    return productCache.data;
+function sheetsErrorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "message" in err && typeof err.message === "string") {
+    return err.message;
   }
+  return "Google Sheets onbereikbaar";
+}
 
-  try {
-    const sheets = getSheetsClient();
+async function loadProductsFromSheet(): Promise<Product[]> {
+  const sheets = getSheetsClient();
 
-    const meta = await sheets.spreadsheets.get({
+  const noRetry = { retry: false as const };
+  const meta = await sheets.spreadsheets.get(
+    {
       spreadsheetId: SHEET_ID,
       fields: "sheets.properties.title",
+    },
+    noRetry
+  );
+
+  const sheetNames = meta.data.sheets?.map((s) => s.properties?.title).filter(Boolean) as string[];
+  const catalogTabs = sheetNames.filter((name) => !isTreatmentTabName(name));
+
+  if (catalogTabs.length === 0) return [];
+
+  const batch = await sheets.spreadsheets.values.batchGet(
+    {
+      spreadsheetId: SHEET_ID,
+      ranges: catalogTabs.map((name) => `'${name}'!A1:Z1000`),
+    },
+    noRetry
+  );
+
+  const allProducts: Product[] = [];
+  for (const valueRange of batch.data.valueRanges ?? []) {
+    const rows = valueRange.values as string[][] | undefined;
+    if (!rows || rows.length < 2) continue;
+    const tab = tabNameFromRange(valueRange.range || "") || "Onbekend";
+    allProducts.push(...parseSheetRows(rows, tab));
+  }
+
+  console.log(
+    `[Products] Loaded ${allProducts.length} products from ${catalogTabs.length} tabs: ${catalogTabs.join(", ")}`
+  );
+  return allProducts;
+}
+
+const getCachedSheetProducts = unstable_cache(loadProductsFromSheet, ["sheet-products"], {
+  revalidate: 60,
+  tags: ["products"],
+});
+
+async function getProductsFromSheet(fresh = false): Promise<Product[]> {
+  if (!isSheetConfigured()) return [];
+
+  if (!fresh && staleCache && Date.now() - staleCache.timestamp < 60_000) {
+    return staleCache.data;
+  }
+
+  const run = async () => {
+    const data = fresh ? await loadProductsFromSheet() : await getCachedSheetProducts();
+    staleCache = { data, timestamp: Date.now() };
+    return data;
+  };
+
+  try {
+    if (inflight) return await inflight;
+    inflight = run().finally(() => {
+      inflight = null;
     });
-
-    const sheetNames = meta.data.sheets?.map((s) => s.properties?.title).filter(Boolean) as string[];
-
-    const allProducts: Product[] = [];
-
-    for (const name of sheetNames) {
-      if (isTreatmentTabName(name)) continue;
-
-      const res = await sheets.spreadsheets.values.get({
-        spreadsheetId: SHEET_ID,
-        range: `'${name}'!A1:Z1000`,
-      });
-
-      const rows = res.data.values as string[][] | undefined;
-      if (rows && rows.length >= 2) {
-        const products = parseSheetRows(rows, name);
-        allProducts.push(...products);
-      }
-    }
-
-    console.log(`[Products] Loaded ${allProducts.length} products from ${sheetNames.length} tabs: ${sheetNames.join(", ")}`);
-    productCache = { data: allProducts, timestamp: Date.now() };
-    return allProducts;
+    return await inflight;
   } catch (err) {
-    console.error("[Products] Google Sheets API error:", err);
-    if (productCache) return productCache.data;
-    return [];
+    console.error("[Products] Google Sheets API error:", sheetsErrorMessage(err));
+    if (staleCache && Date.now() - staleCache.timestamp < STALE_TTL) {
+      return staleCache.data;
+    }
+    throw err;
   }
 }
 
@@ -174,12 +139,16 @@ function shopifyToProduct(sp: ShopifyProduct): Product {
   };
 }
 
-export async function getAllProducts(): Promise<Product[]> {
-  // Priority 1: Google Sheet
-  const sheetProducts = await getProductsFromSheet();
-  if (sheetProducts.length > 0) return sheetProducts;
+export async function getAllProducts(options?: { fresh?: boolean }): Promise<Product[]> {
+  if (isSheetConfigured()) {
+    try {
+      return await getProductsFromSheet(options?.fresh);
+    } catch {
+      // Sheet staat aan; geen incomplete Shopify-catalogus van 20 stuks tonen.
+      return staleCache?.data ?? [];
+    }
+  }
 
-  // Priority 2: Shopify
   try {
     const shopifyProducts = await getShopifyProducts();
     if (shopifyProducts.length > 0) return shopifyProducts.map(shopifyToProduct);

@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createCart, getVariantByProductTitle } from "@/lib/cart";
+import { buildDirectCheckoutUrl, createCart, isVariantInStorefront } from "@/lib/cart";
+import { resolveOrderableVariant } from "@/lib/shopify-catalog";
+
+export const runtime = "nodejs";
+
+function whatsappLink(productTitle: string) {
+  return `https://wa.me/31623747712?text=${encodeURIComponent(
+    `Hoi! Ik wil graag bestellen: ${productTitle}`
+  )}`;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,39 +18,67 @@ export async function POST(req: NextRequest) {
     let variantId = directVariantId;
 
     if (!variantId && productTitle) {
-      const result = await getVariantByProductTitle(productTitle);
-      if (!result) {
+      const result = await resolveOrderableVariant(productTitle);
+
+      if (result.status === "out_of_stock") {
         return NextResponse.json(
           {
-            error: "Product niet gevonden in Shopify. Neem contact op via WhatsApp.",
-            whatsapp: `https://wa.me/31623747712?text=${encodeURIComponent(
-              `Hoi! Ik wil graag bestellen: ${productTitle}`
-            )}`,
+            error: `${result.title} is momenteel uitverkocht.`,
+            outOfStock: true,
+            whatsapp: whatsappLink(result.title),
+          },
+          { status: 409 }
+        );
+      }
+
+      if (result.status === "unknown") {
+        return NextResponse.json(
+          {
+            error: "Product niet gevonden. Neem contact op via WhatsApp.",
+            whatsapp: whatsappLink(productTitle),
           },
           { status: 404 }
         );
       }
-      variantId = result.variantId;
+
+      variantId = result.ref.variantId;
     }
 
     if (!variantId) {
       return NextResponse.json({ error: "Geen product opgegeven" }, { status: 400 });
     }
 
+    const directUrl = buildDirectCheckoutUrl(variantId, quantity);
+
+    // Staat het product niet in het verkoopkanaal van dit Storefront-token,
+    // dan kan de eigen winkelwagen de variant niet vasthouden en bestelt de
+    // klant via de Online Store.
     if (resolveOnly) {
-      return NextResponse.json({ variantId });
+      const storefrontReady = await isVariantInStorefront(variantId);
+      return NextResponse.json({
+        variantId,
+        storefrontReady,
+        directCheckoutUrl: buildDirectCheckoutUrl(variantId, quantity, { returnTo: "/cart" }),
+      });
     }
 
-    const cart = await createCart(variantId, quantity);
-
-    if (!cart?.checkoutUrl) {
-      return NextResponse.json(
-        { error: "Checkout kon niet worden aangemaakt" },
-        { status: 500 }
-      );
+    try {
+      const cart = await createCart(variantId, quantity);
+      if (cart?.checkoutUrl) {
+        return NextResponse.json({ checkoutUrl: cart.checkoutUrl });
+      }
+    } catch (err) {
+      console.error("[Checkout] Storefront-cart geweigerd, val terug op Online Store:", err);
     }
 
-    return NextResponse.json({ checkoutUrl: cart.checkoutUrl });
+    if (directUrl) {
+      return NextResponse.json({ checkoutUrl: directUrl, via: "online-store" });
+    }
+
+    return NextResponse.json(
+      { error: "Checkout kon niet worden aangemaakt" },
+      { status: 500 }
+    );
   } catch (err) {
     console.error("[Checkout] Error:", err);
     const message = err instanceof Error ? err.message : "Er ging iets mis. Probeer het opnieuw.";

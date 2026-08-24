@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export const revalidate = 300;
+export const revalidate = 60;
 
 export default async function ProductPage({ params }: PageProps) {
   const product = await getProductBySlug(params.handle);

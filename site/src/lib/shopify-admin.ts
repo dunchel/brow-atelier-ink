@@ -77,3 +77,46 @@ export async function shopifyRest(
       : "Shopify rate limit — wacht even en probeer opnieuw"
   );
 }
+
+/**
+ * Admin GraphQL. Nodig voor alles wat de REST-API niet kan, zoals producten
+ * publiceren naar een verkoopkanaal. Deelt de throttle met shopifyRest, want
+ * Shopify telt beide tegen dezelfde limiet.
+ */
+export async function shopifyGraphql(
+  query: string,
+  variables?: Record<string, unknown>,
+  maxRetries = 3
+): Promise<{ data?: Record<string, unknown>; errors?: { message: string }[] }> {
+  let lastError: string | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    await throttle();
+
+    const res = await fetch(`https://${domain}/admin/api/2024-10/graphql.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": adminToken,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    let json: { data?: Record<string, unknown>; errors?: { message: string }[] };
+    try {
+      json = await res.json();
+    } catch {
+      json = {};
+    }
+
+    if (res.status === 429 || isRateLimitError(json.errors)) {
+      lastError = json.errors?.[0]?.message ?? "Rate limit";
+      await sleep(2000 * (attempt + 1));
+      continue;
+    }
+
+    return json;
+  }
+
+  throw new Error(lastError ?? "Shopify rate limit — wacht even en probeer opnieuw");
+}

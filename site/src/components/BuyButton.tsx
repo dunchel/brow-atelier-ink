@@ -15,27 +15,39 @@ export function BuyButton({ productTitle, variantId }: BuyButtonProps) {
   const [added, setAdded] = useState(false);
   const { addItem } = useCart();
 
-  const resolveVariantId = async (): Promise<string | null> => {
-    if (variantId) return variantId;
+  interface Resolved {
+    variantId?: string;
+    /** False als het product buiten het verkoopkanaal van de site valt. */
+    storefrontReady?: boolean;
+    directCheckoutUrl?: string | null;
+    error?: string;
+  }
+
+  const resolveVariant = async (): Promise<Resolved> => {
     const res = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productTitle, resolveOnly: true }),
+      body: JSON.stringify({ productTitle, variantId, quantity, resolveOnly: true }),
     });
     const data = await res.json();
-    return data.variantId ?? null;
+    if (data.variantId) return data;
+    return { error: data.error || "Product niet gevonden." };
   };
 
   const handleAddToCart = async () => {
     setLoading(true);
     setError(null);
     try {
-      let vid = variantId;
+      const resolved = await resolveVariant();
+      const vid = resolved.variantId;
       if (!vid) {
-        vid = (await resolveVariantId()) ?? undefined;
+        setError(resolved.error ?? "Product niet gevonden.");
+        return;
       }
-      if (!vid) {
-        setError("Product niet gevonden in Shopify.");
+      // Producten buiten het verkoopkanaal kan de eigen winkelwagen niet
+      // vasthouden; die gaan naar de winkelwagen van Shopify zelf.
+      if (resolved.storefrontReady === false && resolved.directCheckoutUrl) {
+        window.location.href = resolved.directCheckoutUrl;
         return;
       }
       await addItem(vid, quantity);
@@ -61,7 +73,7 @@ export function BuyButton({ productTitle, variantId }: BuyButtonProps) {
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else if (data.whatsapp) {
-        setError("Dit product is nog niet online te bestellen.");
+        setError(data.error || "Dit product is nu niet online te bestellen.");
         setTimeout(() => window.open(data.whatsapp, "_blank"), 1500);
       } else {
         setError(data.error || "Er ging iets mis.");
