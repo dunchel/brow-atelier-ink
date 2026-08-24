@@ -171,14 +171,17 @@ function ActionButtons({
   const [status, setStatus] = useState<"idle" | "added" | "error">("idle");
   const { addItem } = useCart();
 
-  const resolveVariantId = async (): Promise<string | null> => {
+  const resolveVariant = async (): Promise<{
+    variantId?: string;
+    storefrontReady?: boolean;
+    directCheckoutUrl?: string | null;
+  }> => {
     const res = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ productTitle, resolveOnly: true }),
     });
-    const data = await res.json();
-    return data.variantId ?? null;
+    return res.json();
   };
 
   const handleAddToCart = async (e: React.MouseEvent) => {
@@ -187,8 +190,14 @@ function ActionButtons({
     setLoading(true);
     setStatus("idle");
     try {
-      const vid = await resolveVariantId();
+      const resolved = await resolveVariant();
+      const vid = resolved.variantId;
       if (!vid) { setStatus("error"); setTimeout(() => setStatus("idle"), 2000); return; }
+      // Buiten het verkoopkanaal: via de winkelwagen van Shopify zelf.
+      if (resolved.storefrontReady === false && resolved.directCheckoutUrl) {
+        window.location.href = resolved.directCheckoutUrl;
+        return;
+      }
       await addItem(vid, 1);
       setStatus("added");
       setTimeout(() => setStatus("idle"), 2000);

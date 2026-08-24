@@ -166,44 +166,61 @@ export async function removeCartLine(cartId: string, lineId: string): Promise<Ca
   return data.cartLinesRemove.cart;
 }
 
+/** Het numerieke deel van een variant-gid; leeg als het geen variant-id is. */
+export function variantNumericId(variantId: string): string {
+  const match = (variantId || "").match(/(?:gid:\/\/shopify\/ProductVariant\/)?(\d+)$/);
+  return match ? match[1] : "";
+}
+
 /**
- * Kan deze variant daadwerkelijk in een winkelwagen?
+ * Checkout-link buiten de Storefront-API om.
  *
- * De bestelflow zoekt het product op via de Admin API, maar `createCart` draait
- * op de Storefront API. Die twee zien niet dezelfde catalogus: een product dat
- * de Admin API teruggeeft, kan op het verkoopkanaal van de Storefront-app
- * ontbreken. `cartCreate` antwoordt dan met "The merchandise with id ... does
- * not exist", wat de klant als een onbegrijpelijke fout ziet. Door vóór het
- * aanmaken van de cart te controleren of de Storefront de variant kent, wordt
- * dat verschil zichtbaar en kan de aanroeper een bruikbare melding geven.
- *
- * @param variantId Globale variant-id (`gid://shopify/ProductVariant/...`).
- * @returns "orderable" als de variant bestelbaar is, "sold_out" als de
- *   Storefront hem kent maar niet verkoopt, "not_published" als de Storefront
- *   hem niet kent, en "unknown" als de check zelf mislukt.
+ * Producten die de sync aanmaakt staan wel op de Online Store, maar niet in
+ * het verkoopkanaal van het Storefront-token. `cartCreate` weigert ze dan met
+ * "The merchandise with id ... does not exist". Deze permalink laat Shopify
+ * zelf de winkelwagen vullen en werkt voor elk product in de winkel.
  */
-export async function checkVariantOrderable(
-  variantId: string
-): Promise<"orderable" | "sold_out" | "not_published" | "unknown"> {
+export function buildDirectCheckoutUrl(
+  variantId: string,
+  quantity = 1,
+  options: { returnTo?: string } = {}
+): string | null {
+  const numeric = variantNumericId(variantId);
+  if (!numeric || !domain) return null;
+  const qty = Math.max(1, Math.min(20, Math.floor(quantity) || 1));
+  const base = `https://${domain}/cart/${numeric}:${qty}`;
+  // Zonder return_to stuurt Shopify meteen door naar de checkout.
+  return options.returnTo ? `${base}?return_to=${encodeURIComponent(options.returnTo)}` : base;
+}
+
+const storefrontVariantCache = new Map<string, { ok: boolean; timestamp: number }>();
+const STOREFRONT_CHECK_TTL = 5 * 60_000;
+
+/**
+ * Kan de Storefront-API deze variant überhaupt in een winkelwagen leggen? Zo
+ * niet, dan hangt het product niet aan het verkoopkanaal van dit token en moet
+ * de bestelflow via de Online Store lopen.
+ */
+export async function isVariantInStorefront(variantId: string): Promise<boolean> {
+  const cached = storefrontVariantCache.get(variantId);
+  if (cached && Date.now() - cached.timestamp < STOREFRONT_CHECK_TTL) return cached.ok;
+
+  let ok = false;
   try {
     const { data } = await storeFetch(
-      `query variantAvailability($id: ID!) {
+      `query variantExists($id: ID!) {
         node(id: $id) {
-          ... on ProductVariant {
-            id
-            availableForSale
-          }
+          ... on ProductVariant { id }
         }
       }`,
       { id: variantId }
     );
-
-    const node = data?.node;
-    if (!node) return "not_published";
-    return node.availableForSale ? "orderable" : "sold_out";
+    ok = Boolean(data?.node?.id);
   } catch (err) {
-    // De check mag de bestelling niet blokkeren als Shopify zelf hapert.
-    console.error("[Shopify] Variantcontrole mislukt:", err);
-    return "unknown";
+    console.error("[Cart] Storefront-check mislukt:", err);
+    ok = false;
   }
+
+  storefrontVariantCache.set(variantId, { ok, timestamp: Date.now() });
+  return ok;
 }

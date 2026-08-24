@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAllProducts } from "@/lib/products";
 import { getAllInventoryProducts } from "@/lib/sheet-inventory";
 import { isRateLimitError } from "@/lib/shopify-admin";
-import { createShopifyProduct, findShopifyProductByTitle } from "@/lib/shopify-catalog";
+import { createShopifyProduct, findShopifyProductByTitle, takePublishWarning } from "@/lib/shopify-catalog";
 import { normalizeTitle } from "@/lib/product-match";
 
 export async function POST(req: NextRequest) {
@@ -52,6 +52,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Lukt publiceren niet, dan staan de producten wel in de admin maar ziet
+    // de webshop ze niet — dat moet de beheerder weten.
+    const publishWarning = takePublishWarning();
+
     const nextOffset = offset + batchSize;
     const hasMore = nextOffset < allProducts.length;
 
@@ -65,6 +69,7 @@ export async function POST(req: NextRequest) {
         processed: offset + batch.length,
       },
       results,
+      publishWarning,
       hasMore,
       nextOffset: hasMore ? nextOffset : null,
     });

@@ -15,15 +15,22 @@ export function BuyButton({ productTitle, variantId }: BuyButtonProps) {
   const [added, setAdded] = useState(false);
   const { addItem } = useCart();
 
-  const resolveVariant = async (): Promise<{ variantId?: string; error?: string }> => {
-    if (variantId) return { variantId };
+  interface Resolved {
+    variantId?: string;
+    /** False als het product buiten het verkoopkanaal van de site valt. */
+    storefrontReady?: boolean;
+    directCheckoutUrl?: string | null;
+    error?: string;
+  }
+
+  const resolveVariant = async (): Promise<Resolved> => {
     const res = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productTitle, resolveOnly: true }),
+      body: JSON.stringify({ productTitle, variantId, quantity, resolveOnly: true }),
     });
     const data = await res.json();
-    if (data.variantId) return { variantId: data.variantId };
+    if (data.variantId) return data;
     return { error: data.error || "Product niet gevonden." };
   };
 
@@ -35,6 +42,12 @@ export function BuyButton({ productTitle, variantId }: BuyButtonProps) {
       const vid = resolved.variantId;
       if (!vid) {
         setError(resolved.error ?? "Product niet gevonden.");
+        return;
+      }
+      // Producten buiten het verkoopkanaal kan de eigen winkelwagen niet
+      // vasthouden; die gaan naar de winkelwagen van Shopify zelf.
+      if (resolved.storefrontReady === false && resolved.directCheckoutUrl) {
+        window.location.href = resolved.directCheckoutUrl;
         return;
       }
       await addItem(vid, quantity);

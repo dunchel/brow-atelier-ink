@@ -12,6 +12,7 @@ import { getAllProducts, type Product } from "./products";
 import { getAllInventoryProducts } from "./sheet-inventory";
 import { shopifyErrorMessage, shopifyRest } from "./shopify-admin";
 import { handleize, normalizeTitle, titlesMatch } from "./product-match";
+import { publishProduct } from "./shopify-publish";
 
 export interface ShopifyProductRow {
   id: number;
@@ -110,7 +111,25 @@ export async function createShopifyProduct(product: {
 
   const created = (data as { product?: ShopifyProductRow }).product;
   if (!created) throw new Error("Shopify gaf geen product terug");
+
+  // Zonder publiceren staat het product wel in de admin, maar ziet de
+  // Storefront-API het niet en kan de klant het niet in de winkelwagen leggen.
+  const publish = await publishProduct(created.id);
+  if (publish.status !== "published") {
+    lastPublishWarning = publish.reason;
+    console.warn(`[Shopify] "${created.title}" niet gepubliceerd: ${publish.reason}`);
+  }
+
   return created;
+}
+
+let lastPublishWarning: string | null = null;
+
+/** De laatste reden waarom publiceren niet lukte, voor de admin-sync. */
+export function takePublishWarning(): string | null {
+  const warning = lastPublishWarning;
+  lastPublishWarning = null;
+  return warning;
 }
 
 export type SheetLookup =

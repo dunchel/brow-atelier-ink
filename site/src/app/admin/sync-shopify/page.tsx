@@ -45,6 +45,7 @@ export default function SyncShopifyPage() {
         });
         const data = await res.json();
 
+        if (data.publishWarning) setError(data.publishWarning);
         if (data.error) {
           setError(data.error);
           break;
