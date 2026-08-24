@@ -44,6 +44,20 @@ function pickMatch(data: unknown, title: string): ShopifyProductRow | null {
   return products.find((p) => titlesMatch(p.title, title)) ?? null;
 }
 
+/** Pagina Shopify-producten voor de publicatie-sync. `sinceId` is exclusief. */
+export async function listShopifyProductsPage(
+  sinceId: number,
+  limit = 1
+): Promise<{ products: ShopifyProductRow[]; nextSinceId: number | null }> {
+  const size = Math.max(1, Math.min(50, Math.floor(limit) || 1));
+  const data = await shopifyRest(
+    `products.json?limit=${size}&since_id=${Math.max(0, sinceId)}&fields=id,title,variants`
+  );
+  const products = ((data as { products?: ShopifyProductRow[] }).products ?? []) as ShopifyProductRow[];
+  const last = products[products.length - 1];
+  return { products, nextSinceId: last ? last.id : null };
+}
+
 /**
  * Zoekt een product op titel. Eerst de exacte REST-filter, daarna op handle —
  * die vangt verschillen in hoofdletters en accenten op.
@@ -198,6 +212,10 @@ export async function resolveOrderableVariant(title: string): Promise<ResolveRes
     if (ref) {
       variantCache.set(normalizeTitle(wanted), { ref, timestamp: Date.now() });
       variantCache.set(normalizeTitle(canonicalTitle), { ref, timestamp: Date.now() });
+      // Bestaande producten uit de REST-sync hangen vaak niet aan het
+      // verkoopkanaal. Lukt publiceren niet (scope), dan gaat checkout via
+      // de Online Store. Lukt het wel, dan werkt de eigen winkelwagen.
+      void publishProduct(existing.id);
       return { status: "ok", ref, created: false };
     }
   }

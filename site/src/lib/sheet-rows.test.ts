@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseSheetRows } from "./sheet-rows.ts";
+import { parseSheetRows, tabNameFromRange } from "./sheet-rows.ts";
 
 const HEADERS = ["Naam", "Prijs", "Beschrijving", "Categorie", "Voorraad", "Foto", "Tags", "Beschikbaar", "Oude prijs"];
 
@@ -30,4 +30,9 @@ test("een voorraad-cel met tekst valt terug op de kolom beschikbaar", () => {
 test("lege voorraad en lege beschikbaar blijft beschikbaar", () => {
   const products = parseSheetRows([HEADERS, row("Zera ketting", "", "")], "Kettingen");
   assert.equal(products[0].available, true);
+});
+
+test("tabNameFromRange haalt de tab uit een batchGet-range", () => {
+  assert.equal(tabNameFromRange("Oorbellen!A1:Z1000"), "Oorbellen");
+  assert.equal(tabNameFromRange("'Mini parfums'!A1:Z1000"), "Mini parfums");
 });

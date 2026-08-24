@@ -30,6 +30,12 @@ export function slugify(text: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
+/** Tabnaam uit een Sheets batchGet-range, bijv. `'Mini parfums'!A1:Z1000`. */
+export function tabNameFromRange(range: string): string {
+  const raw = (range.split("!")[0] || "").trim();
+  return raw.replace(/^'+|'+$/g, "");
+}
+
 export function parseSheetRows(rows: string[][], categoryOverride?: string): Product[] {
   if (!rows || rows.length < 2) return [];
 

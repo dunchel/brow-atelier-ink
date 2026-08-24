@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       batchSize: 1,
     }));
 
-    const allProducts = await getAllProducts();
+    const allProducts = await getAllProducts({ fresh: true });
     const inventory = await getAllInventoryProducts();
     const barcodeByTitle = new Map(
       inventory.map((p) => [normalizeTitle(p.naam), p.barcode])
