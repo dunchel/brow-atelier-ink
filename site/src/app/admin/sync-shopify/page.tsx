@@ -231,40 +231,116 @@ export default function SyncShopifyPage() {
           alleen mislukte producten worden opnieuw geprobeerd als je sync opnieuw
           start (bestaande worden overgeslagen).
         </p>
-        <div className="text-xs text-brand-taupe mb-6 bg-white border border-brand-cream rounded-lg p-4 space-y-2">
-          <p className="font-medium text-brand-dark">Winkelwagen: eenmalig in Shopify</p>
-          <ol className="list-decimal list-inside space-y-1">
+        <div className="text-xs text-brand-taupe mb-6 bg-white border border-brand-cream rounded-lg p-4 space-y-3">
+          <p className="font-medium text-brand-dark">
+            Verkoopkanalen: plak deze link (niet via Apps in het linkermenu)
+          </p>
+          <p>
+            Shopify heeft het oude pad “Apps → App-ontwikkeling → Configuratie”
+            verplaatst. Dat tabblad staat niet op de gewone app-pagina, niet bij
+            POS en niet in de App Store.
+          </p>
+          <ol className="list-decimal list-inside space-y-1.5">
             <li>
-              Open{" "}
+              Plak in de adresbalk:{" "}
+              <a
+                href="https://admin.shopify.com/store/brow-atelier-ink/settings/apps"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-gold underline break-all"
+              >
+                admin.shopify.com/store/brow-atelier-ink/settings/apps
+              </a>
+            </li>
+            <li>
+              Je ziet “Apps” of “Apps en verkoopkanalen”, met geïnstalleerde
+              apps. Klik bovenin op <strong>App-ontwikkeling</strong> /{" "}
+              <strong>Develop apps</strong>. Direct:{" "}
               <a
                 href="https://admin.shopify.com/store/brow-atelier-ink/settings/apps/development"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-brand-gold underline"
               >
-                Shopify Admin → Apps → App-ontwikkeling
+                …/settings/apps/development
               </a>
             </li>
             <li>
-              Klik op de app <strong>Website Admin</strong> → Configuratie →
-              Admin API-integratie → Bewerken
+              Staat die knop er niet? Klik eerst{" "}
+              <strong>App-ontwikkeling toestaan</strong> /{" "}
+              <strong>Allow custom app development</strong> (winkeleigenaar).
+              Bevestig de waarschuwing.
             </li>
             <li>
-              Vink aan: <strong>read_publications</strong> en{" "}
-              <strong>write_publications</strong>. Opslaan.
+              Open de app <strong>Website Admin</strong>. Niet Point of Sale,
+              niet Online Store / thema, niet een app uit de App Store.
             </li>
             <li>
-              Ga naar API-gegevens en klik op <strong>App installeren</strong>{" "}
-              (of opnieuw installeren).
+              <strong>Pad A (2026):</strong> knop{" "}
+              <strong>Apps in Dev Dashboard bouwen</strong> /{" "}
+              <strong>Build apps in Dev Dashboard</strong> → Website Admin →
+              tab <strong>Versions</strong> → Access / Select scopes → zoek{" "}
+              <strong>publications</strong> → vink{" "}
+              <strong>read_publications</strong> en{" "}
+              <strong>write_publications</strong> → <strong>Release</strong>.
+              Daarna in de winkel de nieuwe rechten goedkeuren als Shopify dat
+              vraagt. Dev Dashboard ook via{" "}
+              <a
+                href="https://dev.shopify.com/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-gold underline"
+              >
+                dev.shopify.com/dashboard
+              </a>
+              .
             </li>
             <li>
-              Komt er een nieuwe Admin API-token? Zet die in Vercel als{" "}
-              <code>SHOPIFY_ADMIN_ACCESS_TOKEN</code> en deploy opnieuw.
+              <strong>Pad B (oude app):</strong> kopje “Verouderde aangepaste
+              apps” / Legacy custom apps → Website Admin →{" "}
+              <strong>Configuratie</strong> → Admin API-integratie → Bewerken
+              → dezelfde twee vinkjes → Opslaan → API-gegevens → App
+              (opnieuw) installeren. De app zelf niet verwijderen.
             </li>
             <li>
-              Kom hier terug en klik op <strong>Zet op verkoopkanalen</strong>.
+              Kom hier terug en klik <strong>Zet op verkoopkanalen</strong>.
             </li>
           </ol>
+          <p>
+            Zie je alleen een rode knop Verwijderen en een lijst rechten, zonder
+            Configuratie? Dan ben je op de geïnstalleerde app — dat is de
+            verkeerde plek. Gebruik pad A of B.
+          </p>
+          <p>
+            Krijgt Shopify een nieuwe Admin API-token? Niet in de chat plakken;
+            die hoort in Vercel als <code>SHOPIFY_ADMIN_ACCESS_TOKEN</code>.
+          </p>
+        </div>
+        <div className="text-xs text-brand-taupe mb-6 bg-white border border-brand-cream rounded-lg p-4 space-y-2">
+          <p className="font-medium text-brand-dark">Welke knop</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>
+              <strong>Ververs website-catalogus</strong> — leest de Sheet
+              opnieuw. Raakt Shopify niet.
+            </li>
+            <li>
+              <strong>Producten syncen</strong> — zet nieuwe Sheet-rijen in
+              Shopify. Bestaande titels slaat hij over. Wis niets.
+            </li>
+            <li>
+              <strong>Barcodes naar Shopify</strong> — vult barcodes op
+              bestaande producten.
+            </li>
+            <li>
+              <strong>Zet op verkoopkanalen</strong> — maakt producten zichtbaar
+              voor de site-cart. Faalt dit op publications-rechten: bestellen
+              via de Shopify-winkelwagen blijft werken.
+            </li>
+          </ul>
+          <p>
+            Oude Shopify-producten die niet in de Sheet staan: niet massaal
+            verwijderen. Ze staan niet op de website.
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-3 mb-8">
