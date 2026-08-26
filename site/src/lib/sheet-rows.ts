@@ -19,6 +19,11 @@ export interface Product {
   tags: string[];
   imageUrl: string;
   images: string[];
+  /**
+   * Alternatieve URL's voor de eerste afbeelding, meest kansrijke eerst.
+   * Gevuld zodra de Shopify-kopie bekend is; leeg betekent: alleen `images`.
+   */
+  imageSources?: string[];
   imageAlt: string;
   available: boolean;
   /** Aantal uit de voorraadkolom. `null` = niets ingevuld, dus géén nul. */

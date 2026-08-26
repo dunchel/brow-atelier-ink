@@ -8,6 +8,8 @@ import { google } from "googleapis";
 import { getProducts as getShopifyProducts, type ShopifyProduct } from "./shopify";
 import { isTreatmentTabName } from "./treatments";
 import { parseSheetRows, slugify, tabNameFromRange, type Product } from "./sheet-rows";
+import { mediaKey, orderImageSources, pickGallery } from "./product-media";
+import { getShopifyMedia, isBlobReachable } from "./product-media-source";
 
 export { parseSheetRows, slugify };
 export type { Product };
@@ -141,10 +143,48 @@ function shopifyToProduct(sp: ShopifyProduct): Product {
   };
 }
 
+/**
+ * Vult de beeldbronnen van elk product aan met de Shopify-kopie.
+ *
+ * De site toont hierna een foto zolang minstens één van beide kanalen werkt.
+ * Lukt het ophalen niet, dan blijven de producten ongewijzigd: liever de
+ * Sheet-foto's alleen dan een catalogus zonder afbeeldingen.
+ *
+ * @param products Producten zoals ze uit de Sheet komen.
+ * @returns Dezelfde producten, met een aangevulde en geordende `images`.
+ */
+async function withMediaFallback(products: Product[]): Promise<Product[]> {
+  if (products.length === 0) return products;
+
+  const [media, blobOk] = await Promise.all([
+    getShopifyMedia(),
+    isBlobReachable(products.flatMap((p) => p.images)),
+  ]);
+
+  if (Object.keys(media).length === 0 && blobOk) return products;
+
+  if (!blobOk) {
+    console.warn("[Media] Blob-store onbereikbaar; Shopify-afbeeldingen gaan voor.");
+  }
+
+  return products.map((product) => {
+    const shopify = media[mediaKey(product.title)] ?? [];
+    const gallery = pickGallery(product.images, shopify, blobOk);
+    const sources = orderImageSources(product.images, shopify, blobOk);
+    if (gallery.length === 0 && sources.length === 0) return product;
+    return {
+      ...product,
+      images: gallery,
+      imageUrl: gallery[0] ?? sources[0] ?? product.imageUrl,
+      imageSources: sources,
+    };
+  });
+}
+
 export async function getAllProducts(options?: { fresh?: boolean }): Promise<Product[]> {
   if (isSheetConfigured()) {
     try {
-      return await getProductsFromSheet(options?.fresh);
+      return await withMediaFallback(await getProductsFromSheet(options?.fresh));
     } catch {
       // Sheet staat aan; geen incomplete Shopify-catalogus van 20 stuks tonen.
       return staleCache?.data ?? [];

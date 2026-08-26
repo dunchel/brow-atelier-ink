@@ -14,6 +14,7 @@ interface Product {
   brand: string;
   tags: string[];
   imageUrl: string;
+  imageSources?: string[];
   images: string[];
   imageAlt: string;
   available: boolean;
@@ -25,8 +26,38 @@ function formatPrice(price: string): string {
   return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(num);
 }
 
-function ProductImage({ src, alt, title }: { src: string; alt: string; title: string }) {
-  const [status, setStatus] = useState<"loading" | "loaded" | "error">(src ? "loading" : "error");
+/**
+ * Toont de eerste afbeelding die het doet.
+ *
+ * De foto's staan op twee plekken: de Vercel Blob-store waar de Sheet naar
+ * wijst, en de kopie die Shopify zelf bewaart. Valt er één weg, dan schuift
+ * deze component door naar de volgende bron in plaats van meteen de
+ * placeholder te tonen. Pas als geen enkele bron laadt, verschijnt de
+ * placeholder met de productnaam.
+ */
+/** Fallbackketen voor de kaartafbeelding: alternatieven eerst, dan de galerij. */
+function imageSourcesFor(product: Product): string[] {
+  if (product.imageSources?.length) return product.imageSources;
+  if (product.images.length > 0) return product.images;
+  return product.imageUrl ? [product.imageUrl] : [];
+}
+
+function ProductImage({ sources, alt, title }: { sources: string[]; alt: string; title: string }) {
+  const [index, setIndex] = useState(0);
+  const [status, setStatus] = useState<"loading" | "loaded" | "error">(
+    sources.length > 0 ? "loading" : "error"
+  );
+
+  const src = sources[index];
+
+  const handleError = () => {
+    if (index + 1 < sources.length) {
+      setIndex(index + 1);
+      setStatus("loading");
+      return;
+    }
+    setStatus("error");
+  };
 
   if (status === "error" || !src) {
     return (
@@ -43,12 +74,13 @@ function ProductImage({ src, alt, title }: { src: string; alt: string; title: st
     <div className="relative w-full h-full">
       {status === "loading" && <div className="absolute inset-0 bg-brand-cream animate-pulse" />}
       <img
+        key={src}
         src={src}
         alt={alt}
         loading="lazy"
         decoding="async"
         onLoad={() => setStatus("loaded")}
-        onError={() => setStatus("error")}
+        onError={handleError}
         className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
           status === "loading" ? "opacity-0" : "opacity-100"
         }`}
@@ -283,7 +315,11 @@ function ProductCardGrid({ product }: { product: Product }) {
   return (
     <Link href={`/shop/${product.handle}`} className="group block" onClick={handleClick}>
       <div className="aspect-square bg-brand-cream rounded-lg overflow-hidden mb-3 relative">
-        <ProductImage src={product.imageUrl} alt={product.imageAlt} title={product.title} />
+        <ProductImage
+          sources={imageSourcesFor(product)}
+          alt={product.imageAlt}
+          title={product.title}
+        />
         {product.available ? (
           <div
             className={`absolute inset-x-0 bottom-0 transition-opacity duration-200 ${
