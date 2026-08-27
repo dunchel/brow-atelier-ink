@@ -63,6 +63,8 @@ export function ProductGallery({ images, alt, title }: ProductGalleryProps) {
           src={images[active]}
           alt={`${alt} - foto ${active + 1}`}
           className="w-full h-full object-cover"
+          loading="eager"
+          decoding="async"
           draggable={false}
         />
 

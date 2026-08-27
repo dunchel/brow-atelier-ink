@@ -25,10 +25,20 @@ function formatPrice(price: string): string {
   return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(num);
 }
 
-function ProductImage({ src, alt, title }: { src: string; alt: string; title: string }) {
-  const [status, setStatus] = useState<"loading" | "loaded" | "error">(src ? "loading" : "error");
+function ProductImage({
+  src,
+  alt,
+  title,
+  priority = false,
+}: {
+  src: string;
+  alt: string;
+  title: string;
+  priority?: boolean;
+}) {
+  const [failed, setFailed] = useState(!src);
 
-  if (status === "error" || !src) {
+  if (failed || !src) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-brand-cream/60 gap-2 p-4">
         <svg className="w-8 h-8 text-brand-taupe/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -40,34 +50,41 @@ function ProductImage({ src, alt, title }: { src: string; alt: string; title: st
   }
 
   return (
-    <div className="relative w-full h-full">
-      {status === "loading" && <div className="absolute inset-0 bg-brand-cream animate-pulse" />}
+    <div className="relative w-full h-full bg-brand-cream">
       <img
         src={src}
         alt={alt}
-        loading="lazy"
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
         decoding="async"
-        onLoad={() => setStatus("loaded")}
-        onError={() => setStatus("error")}
-        className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
-          status === "loading" ? "opacity-0" : "opacity-100"
-        }`}
+        onError={() => setFailed(true)}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
       />
     </div>
   );
 }
 
 // ── Swipeable fotogalerij voor enkele-tegel kaart ────────────────────────────
-function CardSwiper({ images, alt, title }: { images: string[]; alt: string; title: string }) {
+function CardSwiper({
+  images,
+  alt,
+  title,
+  priority = false,
+}: {
+  images: string[];
+  alt: string;
+  title: string;
+  priority?: boolean;
+}) {
   const valid = images.filter(Boolean);
   const [active, setActive] = useState(0);
-  const [imgStatus, setImgStatus] = useState<"loading" | "loaded" | "error">(valid.length > 0 ? "loading" : "error");
+  const [failed, setFailed] = useState(valid.length === 0);
   const txStart = useRef<number | null>(null);
   const txEnd = useRef<number | null>(null);
 
   const goTo = (i: number) => {
     setActive(i);
-    setImgStatus("loading");
+    setFailed(false);
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -89,7 +106,7 @@ function CardSwiper({ images, alt, title }: { images: string[]; alt: string; tit
     txEnd.current = null;
   };
 
-  if (valid.length === 0 || imgStatus === "error") {
+  if (valid.length === 0 || failed) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-brand-cream/60 gap-2 p-4">
         <svg className="w-8 h-8 text-brand-taupe/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -102,23 +119,20 @@ function CardSwiper({ images, alt, title }: { images: string[]; alt: string; tit
 
   return (
     <div
-      className="relative w-full h-full select-none"
+      className="relative w-full h-full select-none bg-brand-cream"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      {imgStatus === "loading" && <div className="absolute inset-0 bg-brand-cream animate-pulse" />}
       <img
         src={valid[active]}
         alt={`${alt}${active > 0 ? ` - foto ${active + 1}` : ""}`}
-        loading="lazy"
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
         decoding="async"
         draggable={false}
-        onLoad={() => setImgStatus("loaded")}
-        onError={() => setImgStatus("error")}
-        className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
-          imgStatus === "loading" ? "opacity-0" : "opacity-100"
-        }`}
+        onError={() => setFailed(true)}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
       />
 
       {valid.length > 1 && (
@@ -264,7 +278,7 @@ function ActionButtons({
 // ── Kaart: grid-modus (2-koloms) ──────────────────────────────────────────────
 // Mobiel: eerste tik = overlay fade in, tweede tik = navigeer
 // Desktop: hover = overlay fade in
-function ProductCardGrid({ product }: { product: Product }) {
+function ProductCardGrid({ product, priority = false }: { product: Product; priority?: boolean }) {
   const [revealed, setRevealed] = useState(false);
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -283,7 +297,7 @@ function ProductCardGrid({ product }: { product: Product }) {
   return (
     <Link href={`/shop/${product.handle}`} className="group block" onClick={handleClick}>
       <div className="aspect-square bg-brand-cream rounded-lg overflow-hidden mb-3 relative">
-        <ProductImage src={product.imageUrl} alt={product.imageAlt} title={product.title} />
+        <ProductImage src={product.imageUrl} alt={product.imageAlt} title={product.title} priority={priority} />
         {product.available ? (
           <div
             className={`absolute inset-x-0 bottom-0 transition-opacity duration-200 ${
@@ -320,13 +334,13 @@ function ProductCardGrid({ product }: { product: Product }) {
 
 // ── Kaart: enkele-modus (1-koloms, groter) ────────────────────────────────────
 // Knoppen altijd zichtbaar onder de afbeelding, foto's swipeable
-function ProductCardLarge({ product }: { product: Product }) {
+function ProductCardLarge({ product, priority = false }: { product: Product; priority?: boolean }) {
   const images = product.images.length > 0 ? product.images : product.imageUrl ? [product.imageUrl] : [];
   return (
     <div>
       <Link href={`/shop/${product.handle}`} className="group block">
         <div className="aspect-square bg-brand-cream rounded-xl overflow-hidden mb-4 relative">
-          <CardSwiper images={images} alt={product.imageAlt} title={product.title} />
+          <CardSwiper images={images} alt={product.imageAlt} title={product.title} priority={priority} />
           {!product.available && (
             <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
               <span className="text-sm font-medium text-brand-dark bg-white/90 px-4 py-2 rounded-full">
@@ -543,14 +557,14 @@ export function ShopFilter({ products }: ShopFilterProps) {
       {filtered.length > 0 ? (
         viewMode === "grid" ? (
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
-            {filtered.map((product) => (
-              <ProductCardGrid key={product.id} product={product} />
+            {filtered.map((product, index) => (
+              <ProductCardGrid key={product.id} product={product} priority={index < 9} />
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {filtered.map((product) => (
-              <ProductCardLarge key={product.id} product={product} />
+            {filtered.map((product, index) => (
+              <ProductCardLarge key={product.id} product={product} priority={index < 9} />
             ))}
           </div>
         )
