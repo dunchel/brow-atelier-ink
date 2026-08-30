@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { PosStaffGuide } from "@/components/PosStaffGuide";
 import { PosWorkstation } from "@/components/PosWorkstation";
 
 function CodeLookupContent() {
@@ -31,6 +32,7 @@ function CodeLookupContent() {
 
       <section className="pb-16 px-4">
         <div className="max-w-lg mx-auto">
+          <PosStaffGuide device="phone" />
           <PosWorkstation autofocus={!fromUrl} initialCode={fromUrl || undefined} />
         </div>
       </section>

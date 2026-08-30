@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { PosStaffGuide } from "@/components/PosStaffGuide";
 import { PosWorkstation } from "@/components/PosWorkstation";
 
 interface Order {
@@ -120,6 +121,7 @@ export default function VerkoopPage() {
               Tarieven bewerken
             </Link>
           </div>
+          <PosStaffGuide device="laptop" />
           <PosWorkstation lookupUrl="/api/admin/lookup" autofocus />
         </section>
 

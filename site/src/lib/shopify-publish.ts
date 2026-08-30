@@ -13,7 +13,16 @@
  * blijft op de site en toont een melding.
  */
 
+import type { Publication } from "./publication-channels";
+import {
+  publicationKind,
+  treatmentPublishChannels,
+  treatmentUnpublishChannels,
+} from "./publication-channels";
 import { shopifyGraphql } from "./shopify-admin";
+
+export type { Publication, PublicationKind } from "./publication-channels";
+export { publicationKind, treatmentPublishChannels, treatmentUnpublishChannels };
 
 /** Scope ontbreekt op het Admin-token; publiceren kan pas na aanpassen app. */
 export const MISSING_PUBLICATION_SCOPE =
@@ -25,13 +34,14 @@ export const MISSING_PUBLICATION_SCOPE =
   "Zet op verkoopkanalen. Bestellen via de Shopify-winkelwagen blijft werken.";
 
 export type PublishResult =
-  | { status: "published"; channels: number }
+  | { status: "published"; channels: number; unpublished?: number }
   | { status: "skipped"; reason: string }
   | { status: "failed"; reason: string };
 
-interface Publication {
-  id: string;
-  name: string;
+function productGid(productId: number | string): string {
+  return typeof productId === "string" && productId.startsWith("gid://")
+    ? productId
+    : `gid://shopify/Product/${productId}`;
 }
 
 let publicationCache: { ids: Publication[]; timestamp: number } | null = null;
@@ -96,11 +106,41 @@ export async function getPublications(): Promise<{ publications: Publication[]; 
  * Zet een product op alle verkoopkanalen. Al gepubliceerde kanalen negeert
  * Shopify, dus dit is veilig om nog eens over een bestaand product te draaien.
  */
+async function runPublicationMutation(
+  mutation: "publishablePublish" | "publishableUnpublish",
+  gid: string,
+  publicationIds: string[]
+): Promise<PublishResult | null> {
+  if (publicationIds.length === 0) return null;
+
+  const res = await shopifyGraphql(
+    `mutation run($id: ID!, $input: [PublicationInput!]!) {
+      ${mutation}(id: $id, input: $input) {
+        userErrors { field message }
+      }
+    }`,
+    { id: gid, input: publicationIds.map((publicationId) => ({ publicationId })) }
+  );
+
+  if (isMissingScope(res.errors)) {
+    return { status: "skipped", reason: rememberScopeError() };
+  }
+  if (res.errors?.length) return { status: "failed", reason: res.errors[0].message };
+
+  const payload = res.data?.[mutation] as { userErrors?: { message: string }[] } | undefined;
+  const userErrors = payload?.userErrors ?? [];
+  if (userErrors.length) return { status: "failed", reason: userErrors[0].message };
+
+  return { status: "published", channels: publicationIds.length };
+}
+
+/**
+ * Zet een product op alle verkoopkanalen. Al gepubliceerde kanalen negeert
+ * Shopify, dus dit is veilig om nog eens over een bestaand product te draaien.
+ * Alleen voor sieraden — behandelingen gaan via publishTreatmentProduct.
+ */
 export async function publishProduct(productId: number | string): Promise<PublishResult> {
-  const gid =
-    typeof productId === "string" && productId.startsWith("gid://")
-      ? productId
-      : `gid://shopify/Product/${productId}`;
+  const gid = productGid(productId);
 
   const { publications, error } = await getPublications();
   if (error) return { status: "skipped", reason: error };
@@ -108,26 +148,49 @@ export async function publishProduct(productId: number | string): Promise<Publis
     return { status: "skipped", reason: "Geen verkoopkanalen gevonden in Shopify" };
   }
 
-  const res = await shopifyGraphql(
-    `mutation publish($id: ID!, $input: [PublicationInput!]!) {
-      publishablePublish(id: $id, input: $input) {
-        userErrors { field message }
-      }
-    }`,
-    { id: gid, input: publications.map((p) => ({ publicationId: p.id })) }
+  const result = await runPublicationMutation(
+    "publishablePublish",
+    gid,
+    publications.map((p) => p.id)
   );
+  return result ?? { status: "skipped", reason: "Geen verkoopkanalen gevonden in Shopify" };
+}
 
-  if (isMissingScope(res.errors)) {
-    return { status: "skipped", reason: rememberScopeError() };
+/**
+ * Behandeling: zichtbaar in Shopify POS (en Headless voor de site).
+ * Niet op Online Store, Shop-app, Facebook of TikTok.
+ */
+export async function publishTreatmentProduct(productId: number | string): Promise<PublishResult> {
+  const gid = productGid(productId);
+  const { publications, error } = await getPublications();
+  if (error) return { status: "skipped", reason: error };
+
+  const publish = treatmentPublishChannels(publications);
+  const unpublish = treatmentUnpublishChannels(publications);
+  const hasPos = publish.some((p) => publicationKind(p.name) === "pos");
+  if (!hasPos) {
+    return { status: "failed", reason: "Geen Point of Sale-kanaal gevonden in Shopify" };
   }
 
-  if (res.errors?.length) return { status: "failed", reason: res.errors[0].message };
+  const published = await runPublicationMutation(
+    "publishablePublish",
+    gid,
+    publish.map((p) => p.id)
+  );
+  if (published && published.status !== "published") return published;
 
-  const userErrors =
-    ((res.data?.publishablePublish as { userErrors?: { message: string }[] } | undefined)?.userErrors ?? []);
-  if (userErrors.length) return { status: "failed", reason: userErrors[0].message };
+  const unpublished = await runPublicationMutation(
+    "publishableUnpublish",
+    gid,
+    unpublish.map((p) => p.id)
+  );
+  if (unpublished && unpublished.status !== "published") return unpublished;
 
-  return { status: "published", channels: publications.length };
+  return {
+    status: "published",
+    channels: publish.length,
+    unpublished: unpublish.length,
+  };
 }
 
 /** Alleen voor tests: de onthouden scope-fout en kanalen weer vergeten. */

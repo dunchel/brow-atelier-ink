@@ -93,11 +93,12 @@ const PROCESSES: Process[] = [
         title: "Toon QR's aan Shopify POS",
         description:
           "Tik 'Toon QR's voor POS' en scan elke code met de POS-scanner. POS telt alles bij elkaar op.",
+        tip: "Liever zonder QR: in de POS-app zoeken op de behandelnaam, of één keer een tegel op het startscherm zetten (raster bewerken → tegel toevoegen → product).",
       },
       {
         title: "Eén keer pinnen",
         description:
-          "Reken het totaal af in Shopify POS. Geen aparte pin voor de behandeling.",
+          "Reken het totaal af in Shopify POS. Geen aparte pin voor de behandeling. Op de laptop: zelfde kassa onder Admin → Verkoop.",
       },
     ],
     links: [

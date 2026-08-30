@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getTreatments } from "@/lib/treatments";
 import { shopifyErrorMessage, shopifyRest } from "@/lib/shopify-admin";
 import { adminFetch } from "@/lib/admin";
-import { publishProduct } from "@/lib/shopify-publish";
+import { publishTreatmentProduct } from "@/lib/shopify-publish";
 
 interface ShopifyProductRow {
   id: number;
@@ -80,7 +80,10 @@ export async function POST() {
               },
             });
           }
-          if (existing.id) await publishProduct(existing.id);
+          if (existing.id) {
+            const pub = await publishTreatmentProduct(existing.id);
+            if (pub.status === "failed") throw new Error(pub.reason);
+          }
           results.push({ title: t.naam, status: "updated" });
           updated++;
           continue;
@@ -109,7 +112,10 @@ export async function POST() {
         const err = shopifyErrorMessage(data);
         if (err) throw new Error(err);
         const createdId = (data as { product?: { id?: number } })?.product?.id;
-        if (createdId) await publishProduct(createdId);
+        if (createdId) {
+          const pub = await publishTreatmentProduct(createdId);
+          if (pub.status === "failed") throw new Error(pub.reason);
+        }
         results.push({ title: t.naam, status: "created" });
         created++;
       } catch (err) {

@@ -111,7 +111,7 @@ export default function BehandelingenAdminPage() {
       if (!res.ok) throw new Error(data.error || "Sync mislukt");
       const s = data.summary;
       setMsg(
-        `Shopify: ${s.created} nieuw, ${s.updated} bijgewerkt, ${s.failed} fout. Daarna scanbaar in POS.`
+        `Shopify: ${s.created} nieuw, ${s.updated} bijgewerkt, ${s.failed} fout. Alleen op POS (en Headless), niet in de webshop.`
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync mislukt");
