@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCart } from "@/components/CartProvider";
+import { CartTreatmentTiles } from "@/components/CartTreatmentTiles";
+import { isTreatmentBarcode, isTreatmentCatalogItem } from "@/lib/treatment-catalog";
 
 function formatPrice(amount: string, currencyCode = "EUR") {
   return new Intl.NumberFormat("nl-NL", {
@@ -36,11 +38,14 @@ export default function CartPage() {
             </p>
           )}
           {lines.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-brand-taupe mb-6 text-lg">Je winkelwagen is leeg.</p>
-              <Link href="/shop" className="btn-primary text-xs">
-                Naar de shop
-              </Link>
+            <div className="py-8">
+              <p className="text-center text-brand-taupe mb-8 text-lg">Je winkelwagen is leeg.</p>
+              <CartTreatmentTiles />
+              <div className="text-center mt-8">
+                <Link href="/shop" className="btn-primary text-xs">
+                  Naar de shop
+                </Link>
+              </div>
             </div>
           ) : (
             <>
@@ -55,6 +60,12 @@ export default function CartPage() {
                 {lines.map((line) => {
                   const img = line.merchandise.product.images.edges[0]?.node;
                   const lineTotal = (parseFloat(line.merchandise.price.amount) * line.quantity).toFixed(2);
+                  const treatmentLine =
+                    isTreatmentBarcode(line.merchandise.sku || "") ||
+                    isTreatmentCatalogItem({
+                      productType: line.merchandise.product.productType || "",
+                      sku: line.merchandise.sku || "",
+                    });
                   return (
                     <div key={line.id} className="py-6 grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-4 md:gap-6 items-center">
                       <div className="flex gap-4">
@@ -72,12 +83,16 @@ export default function CartPage() {
                           )}
                         </div>
                         <div>
-                          <Link
-                            href={`/shop/${line.merchandise.product.handle}`}
-                            className="text-sm font-medium hover:text-brand-gold transition-colors"
-                          >
-                            {line.merchandise.product.title}
-                          </Link>
+                          {treatmentLine ? (
+                            <p className="text-sm font-medium">{line.merchandise.product.title}</p>
+                          ) : (
+                            <Link
+                              href={`/shop/${line.merchandise.product.handle}`}
+                              className="text-sm font-medium hover:text-brand-gold transition-colors"
+                            >
+                              {line.merchandise.product.title}
+                            </Link>
+                          )}
                           {line.merchandise.title !== "Default Title" && (
                             <p className="text-xs text-brand-taupe mt-1">{line.merchandise.title}</p>
                           )}
@@ -126,6 +141,10 @@ export default function CartPage() {
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="mt-8">
+                <CartTreatmentTiles />
               </div>
 
               <div className="mt-8 border-t border-brand-cream pt-8">

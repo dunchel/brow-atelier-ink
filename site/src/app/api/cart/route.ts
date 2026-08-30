@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCart, updateCartLine, removeCartLine } from "@/lib/cart";
 import { addCartLine } from "@/lib/cart-add";
+import { resolveTreatmentForCart } from "@/lib/treatment-shopify";
 
 export async function GET(req: NextRequest) {
   const cartId = req.nextUrl.searchParams.get("cartId");
@@ -18,17 +19,22 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { cartId, variantId, quantity = 1 } = await req.json();
+    const { cartId, variantId, barcode, quantity = 1 } = await req.json();
 
-    if (!variantId) {
+    let merchandiseId = variantId as string | undefined;
+    if (!merchandiseId && barcode) {
+      merchandiseId = await resolveTreatmentForCart(String(barcode));
+    }
+
+    if (!merchandiseId) {
       return NextResponse.json({ error: "Geen variantId opgegeven" }, { status: 400 });
     }
 
-    const cart = await addCartLine(cartId, variantId, quantity);
+    const cart = await addCartLine(cartId, merchandiseId, quantity);
     return NextResponse.json({ cart });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Kon niet toevoegen aan winkelwagen. Probeer het opnieuw.";
-    const status = /niet in je mandje|niet op het verkoopkanaal/i.test(message) ? 409 : 500;
+    const status = /niet in je mandje|niet op het verkoopkanaal|nog niet in kassa|nog geen prijs/i.test(message) ? 409 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

@@ -10,6 +10,7 @@ interface CartContextType {
   error: string | null;
   itemCount: number;
   addItem: (variantId: string, quantity?: number) => Promise<void>;
+  addItemByBarcode: (barcode: string, quantity?: number) => Promise<void>;
   updateItem: (lineId: string, quantity: number) => Promise<void>;
   removeItem: (lineId: string) => Promise<void>;
   openCart: () => void;
@@ -55,18 +56,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(CART_ID_KEY, newCart.id);
   }, []);
 
-  const addItem = useCallback(async (variantId: string, quantity = 1) => {
+  const postCartLine = useCallback(async (body: Record<string, unknown>) => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/cart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cartId: cart?.id ?? null,
-          variantId,
-          quantity,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data.cart) {
@@ -83,7 +80,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [cart?.id, saveCart]);
+  }, [saveCart]);
+
+  const addItem = useCallback(async (variantId: string, quantity = 1) => {
+    await postCartLine({
+      cartId: cart?.id ?? null,
+      variantId,
+      quantity,
+    });
+  }, [cart?.id, postCartLine]);
+
+  const addItemByBarcode = useCallback(async (barcode: string, quantity = 1) => {
+    await postCartLine({
+      cartId: cart?.id ?? null,
+      barcode,
+      quantity,
+    });
+  }, [cart?.id, postCartLine]);
 
   const updateItem = useCallback(async (lineId: string, quantity: number) => {
     if (!cart?.id) return;
@@ -126,6 +139,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         error,
         itemCount,
         addItem,
+        addItemByBarcode,
         updateItem,
         removeItem,
         openCart: () => setIsOpen(true),

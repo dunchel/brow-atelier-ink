@@ -10,9 +10,11 @@ export interface CartLine {
   merchandise: {
     id: string;
     title: string;
+    sku?: string | null;
     product: {
       title: string;
       handle: string;
+      productType?: string | null;
       images: { edges: { node: { url: string; altText: string | null } }[] };
     };
     price: { amount: string; currencyCode: string };
@@ -48,9 +50,11 @@ const CART_FRAGMENT = `
             ... on ProductVariant {
               id
               title
+              sku
               product {
                 title
                 handle
+                productType
                 images(first: 1) { edges { node { url altText } } }
               }
               price { amount currencyCode }

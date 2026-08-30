@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { formatEuro, parsePrice } from "@/lib/discount";
 import type { SaleProduct } from "./SaleLookupPanel";
+import { TreatmentTileGrid } from "./TreatmentTileGrid";
 
 export interface TreatmentItem {
   naam: string;
@@ -98,16 +99,6 @@ export function PosSaleBoard({ treatments, lastProduct }: PosSaleBoardProps) {
     [lines]
   );
 
-  const groups = useMemo(() => {
-    const map = new Map<string, TreatmentItem[]>();
-    for (const t of treatments) {
-      const list = map.get(t.categorie) || [];
-      list.push(t);
-      map.set(t.categorie, list);
-    }
-    return Array.from(map.entries());
-  }, [treatments]);
-
   const expanded = useMemo(
     () => lines.flatMap((l) => Array.from({ length: l.qty }, () => l)),
     [lines]
@@ -157,43 +148,16 @@ export function PosSaleBoard({ treatments, lastProduct }: PosSaleBoardProps) {
       </div>
 
       {tab === "behandelingen" && (
-        <div className="space-y-5">
-          <p className="text-xs text-brand-taupe">
-            Tik een behandeling aan. Samen met sieraden op één bon — één keer pinnen
-            in Shopify POS.
-          </p>
-          {groups.map(([cat, items]) => (
-            <div key={cat}>
-              <p className="text-xs uppercase tracking-widest text-brand-taupe mb-2">
-                {cat}
-              </p>
-              <div className="space-y-2">
-                {items.map((t) => {
-                  const priced = parsePrice(t.prijs) > 0;
-                  return (
-                    <button
-                      key={t.barcode}
-                      type="button"
-                      onClick={() => addTreatment(t)}
-                      disabled={!priced}
-                      className="w-full flex items-center justify-between gap-3 p-3 bg-white border border-brand-cream rounded-lg text-left hover:border-brand-gold transition-colors disabled:opacity-50"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-medium text-sm">{t.naam}</p>
-                        {t.duur && (
-                          <p className="text-[11px] text-brand-taupe">{t.duur}</p>
-                        )}
-                      </div>
-                      <span className="text-sm font-bold text-brand-gold whitespace-nowrap">
-                        {priced ? `€${formatEuro(parsePrice(t.prijs))}` : "Prijs ontbreekt"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+        <TreatmentTileGrid
+          treatments={treatments}
+          onSelect={(t) => addTreatment({ ...t, duur: t.duur || "" })}
+          intro={
+            <p className="text-xs text-brand-taupe">
+              Tik een behandeling aan. Samen met sieraden op één bon — één keer pinnen
+              in Shopify POS.
+            </p>
+          }
+        />
       )}
 
       {tab === "bon" && (

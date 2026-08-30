@@ -6,7 +6,7 @@
 import { unstable_cache } from "next/cache";
 import { google } from "googleapis";
 import { getProducts as getShopifyProducts, type ShopifyProduct } from "./shopify";
-import { isTreatmentTabName } from "./treatments";
+import { isTreatmentCatalogItem, isTreatmentTabName } from "./treatment-catalog";
 import { parseSheetRows, slugify, tabNameFromRange, type Product } from "./sheet-rows";
 
 export { parseSheetRows, slugify };
@@ -153,7 +153,10 @@ export async function getAllProducts(options?: { fresh?: boolean }): Promise<Pro
 
   try {
     const shopifyProducts = await getShopifyProducts();
-    if (shopifyProducts.length > 0) return shopifyProducts.map(shopifyToProduct);
+    const catalog = shopifyProducts.filter(
+      (sp) => !isTreatmentCatalogItem({ productType: sp.productType, tags: sp.tags })
+    );
+    if (catalog.length > 0) return catalog.map(shopifyToProduct);
   } catch {
     // Shopify not configured
   }

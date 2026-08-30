@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getTreatments } from "@/lib/treatments";
 import { shopifyErrorMessage, shopifyRest } from "@/lib/shopify-admin";
 import { adminFetch } from "@/lib/admin";
+import { publishProduct } from "@/lib/shopify-publish";
 
 interface ShopifyProductRow {
   id: number;
@@ -17,7 +18,7 @@ async function findExisting(
     const { data } = await adminFetch(
       `query ($q: String!) {
         productVariants(first: 1, query: $q) {
-          edges { node { id legacyResourceId product { title } } }
+          edges { node { id legacyResourceId product { title legacyResourceId } } }
         }
       }`,
       { q: `barcode:${barcode}` }
@@ -25,7 +26,7 @@ async function findExisting(
     const node = data?.productVariants?.edges?.[0]?.node;
     if (node?.legacyResourceId) {
       return {
-        id: 0,
+        id: Number(node.product?.legacyResourceId) || 0,
         title: node.product?.title || title,
         variants: [{ id: Number(node.legacyResourceId), barcode }],
       };
@@ -75,9 +76,11 @@ export async function POST() {
                 sku: t.barcode,
                 inventory_management: null,
                 inventory_policy: "continue",
+                requires_shipping: false,
               },
             });
           }
+          if (existing.id) await publishProduct(existing.id);
           results.push({ title: t.naam, status: "updated" });
           updated++;
           continue;
@@ -98,12 +101,15 @@ export async function POST() {
                 sku: t.barcode,
                 inventory_management: null,
                 inventory_policy: "continue",
+                requires_shipping: false,
               },
             ],
           },
         });
         const err = shopifyErrorMessage(data);
         if (err) throw new Error(err);
+        const createdId = (data as { product?: { id?: number } })?.product?.id;
+        if (createdId) await publishProduct(createdId);
         results.push({ title: t.naam, status: "created" });
         created++;
       } catch (err) {

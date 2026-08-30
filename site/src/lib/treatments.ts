@@ -5,6 +5,16 @@ import {
   formatAimyDuration,
   formatAimyPrice,
 } from "./meetaimy";
+import { isTreatmentBarcode, isTreatmentTabName } from "./treatment-catalog";
+
+export {
+  groupTreatmentsByCategory,
+  isPricedTreatment,
+  isTreatmentBarcode,
+  isTreatmentCatalogItem,
+  isTreatmentTabName,
+  TREATMENT_NOT_IN_SHOPIFY,
+} from "./treatment-catalog";
 
 export const TREATMENT_TAB = "Behandelingen";
 
@@ -92,23 +102,8 @@ export const DEFAULT_TREATMENTS: Treatment[] = [
   },
 ];
 
-const TREATMENT_TAB_ALIASES = new Set([
-  "behandelingen",
-  "behandeling",
-  "diensten",
-  "treatments",
-]);
-
 const TREATMENT_TYPE_RE =
   /behandeling|treatment|brows?|wenkbrauw|lash|wimper|henna|lamination|powder|lip\s*blush|freckle|sproet/i;
-
-export function isTreatmentTabName(name: string): boolean {
-  return TREATMENT_TAB_ALIASES.has(name.trim().toLowerCase());
-}
-
-export function isTreatmentBarcode(barcode: string): boolean {
-  return /^BA-BHL-/i.test(barcode.trim());
-}
 
 export function isTreatmentRevenueItem(input: {
   title?: string;
