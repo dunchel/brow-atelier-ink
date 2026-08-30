@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCart } from "@/components/CartProvider";
-import { CartTreatmentTiles } from "@/components/CartTreatmentTiles";
 import { isTreatmentBarcode, isTreatmentCatalogItem } from "@/lib/treatment-catalog";
 
 function formatPrice(amount: string, currencyCode = "EUR") {
@@ -38,14 +37,11 @@ export default function CartPage() {
             </p>
           )}
           {lines.length === 0 ? (
-            <div className="py-8">
-              <p className="text-center text-brand-taupe mb-8 text-lg">Je winkelwagen is leeg.</p>
-              <CartTreatmentTiles />
-              <div className="text-center mt-8">
-                <Link href="/shop" className="btn-primary text-xs">
-                  Naar de shop
-                </Link>
-              </div>
+            <div className="py-8 text-center">
+              <p className="text-brand-taupe mb-8 text-lg">Je winkelwagen is leeg.</p>
+              <Link href="/shop" className="btn-primary text-xs">
+                Naar de shop
+              </Link>
             </div>
           ) : (
             <>
@@ -141,10 +137,6 @@ export default function CartPage() {
                     </div>
                   );
                 })}
-              </div>
-
-              <div className="mt-8">
-                <CartTreatmentTiles />
               </div>
 
               <div className="mt-8 border-t border-brand-cream pt-8">

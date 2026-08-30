@@ -10,7 +10,6 @@ interface CartContextType {
   error: string | null;
   itemCount: number;
   addItem: (variantId: string, quantity?: number) => Promise<void>;
-  addItemByBarcode: (barcode: string, quantity?: number) => Promise<void>;
   updateItem: (lineId: string, quantity: number) => Promise<void>;
   removeItem: (lineId: string) => Promise<void>;
   openCart: () => void;
@@ -90,14 +89,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   }, [cart?.id, postCartLine]);
 
-  const addItemByBarcode = useCallback(async (barcode: string, quantity = 1) => {
-    await postCartLine({
-      cartId: cart?.id ?? null,
-      barcode,
-      quantity,
-    });
-  }, [cart?.id, postCartLine]);
-
   const updateItem = useCallback(async (lineId: string, quantity: number) => {
     if (!cart?.id) return;
     setLoading(true);
@@ -139,7 +130,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
         error,
         itemCount,
         addItem,
-        addItemByBarcode,
         updateItem,
         removeItem,
         openCart: () => setIsOpen(true),

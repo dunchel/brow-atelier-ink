@@ -1,37 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getTreatments } from "@/lib/treatments";
-import { listTreatmentShopifyVariants } from "@/lib/treatment-shopify";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const treatments = await getTreatments();
-    const checkout = req.nextUrl.searchParams.get("checkout") === "1";
-
-    if (!checkout) {
-      return NextResponse.json(
-        { treatments },
-        { headers: { "Cache-Control": "no-store" } }
-      );
-    }
-
-    let shopify: Awaited<ReturnType<typeof listTreatmentShopifyVariants>> | null = null;
-    try {
-      shopify = await listTreatmentShopifyVariants();
-    } catch (err) {
-      console.error("[Treatments] Shopify-status:", err);
-    }
-
-    const withCheckout = treatments.map((t) => ({
-      ...t,
-      ...(shopify && shopify.size > 0
-        ? { inShopify: shopify.has(t.barcode.trim().toUpperCase()) }
-        : {}),
-    }));
-
     return NextResponse.json(
-      { treatments: withCheckout },
+      { treatments },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (err) {

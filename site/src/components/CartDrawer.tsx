@@ -1,7 +1,6 @@
 "use client";
 
 import { useCart } from "./CartProvider";
-import { CartTreatmentTiles } from "./CartTreatmentTiles";
 import Link from "next/link";
 import { useEffect } from "react";
 
@@ -57,8 +56,7 @@ export function CartDrawer() {
         {lines.length === 0 ? (
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <p className="text-brand-taupe text-center mb-6">Je winkelwagen is leeg.</p>
-            <CartTreatmentTiles />
-            <button onClick={closeCart} className="btn-outline text-xs w-full mt-4">
+            <button onClick={closeCart} className="btn-outline text-xs w-full">
               Verder winkelen
             </button>
           </div>
@@ -125,7 +123,6 @@ export function CartDrawer() {
                   </div>
                 );
               })}
-              <CartTreatmentTiles />
             </div>
 
             <div className="border-t border-brand-cream px-6 py-5 space-y-4">

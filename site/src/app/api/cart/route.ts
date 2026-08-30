@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCart, updateCartLine, removeCartLine } from "@/lib/cart";
 import { addCartLine } from "@/lib/cart-add";
-import { resolveTreatmentForCart } from "@/lib/treatment-shopify";
 
 export async function GET(req: NextRequest) {
   const cartId = req.nextUrl.searchParams.get("cartId");
@@ -21,16 +20,18 @@ export async function POST(req: NextRequest) {
   try {
     const { cartId, variantId, barcode, quantity = 1 } = await req.json();
 
-    let merchandiseId = variantId as string | undefined;
-    if (!merchandiseId && barcode) {
-      merchandiseId = await resolveTreatmentForCart(String(barcode));
+    if (barcode && !variantId) {
+      return NextResponse.json(
+        { error: "Behandelingen horen in de kassa, niet in de winkelwagen." },
+        { status: 400 }
+      );
     }
 
-    if (!merchandiseId) {
+    if (!variantId) {
       return NextResponse.json({ error: "Geen variantId opgegeven" }, { status: 400 });
     }
 
-    const cart = await addCartLine(cartId, merchandiseId, quantity);
+    const cart = await addCartLine(cartId, variantId, quantity);
     return NextResponse.json({ cart });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Kon niet toevoegen aan winkelwagen. Probeer het opnieuw.";
