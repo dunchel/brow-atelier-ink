@@ -47,10 +47,6 @@ export function CartTreatmentTiles() {
   const quantities = useMemo(() => quantitiesFromCart(cart, treatments), [cart, treatments]);
 
   const handleSelect = async (t: TreatmentTileData) => {
-    if (t.inShopify === false) {
-      setTileError(TREATMENT_NOT_IN_SHOPIFY);
-      return;
-    }
     setPendingBarcode(t.barcode);
     setTileError(null);
     try {

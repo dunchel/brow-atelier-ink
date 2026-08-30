@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     const withCheckout = treatments.map((t) => ({
       ...t,
-      ...(shopify
+      ...(shopify && shopify.size > 0
         ? { inShopify: shopify.has(t.barcode.trim().toUpperCase()) }
         : {}),
     }));

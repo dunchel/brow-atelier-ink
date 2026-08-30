@@ -82,6 +82,36 @@ export async function findTreatmentVariantByBarcode(
   return null;
 }
 
+function rememberVariant(
+  map: Map<string, TreatmentShopifyVariant>,
+  variant: TreatmentShopifyVariant,
+  extraKeys: string[]
+) {
+  for (const key of [variant.barcode, ...extraKeys].map((k) => k.trim().toUpperCase()).filter(Boolean)) {
+    map.set(key, variant);
+  }
+}
+
+async function listTreatmentVariantsViaRest(): Promise<Map<string, TreatmentShopifyVariant>> {
+  const map = new Map<string, TreatmentShopifyVariant>();
+  const rest = await shopifyRest("products.json?product_type=Behandeling&limit=250");
+  const products = (asRecord(rest)?.products as Record<string, unknown>[] | undefined) ?? [];
+  for (const product of products) {
+    const productId = numericId(product.id);
+    const variants = (product.variants as Record<string, unknown>[] | undefined) ?? [];
+    for (const node of variants) {
+      const variant = variantFromNode(
+        { ...node, product: { legacyResourceId: productId } },
+        String(node.barcode || node.sku || "")
+      );
+      if (!variant) continue;
+      variant.requiresShipping = node.requires_shipping === true;
+      rememberVariant(map, variant, [String(node.sku || ""), String(node.barcode || "")]);
+    }
+  }
+  return map;
+}
+
 export async function listTreatmentShopifyVariants(): Promise<Map<string, TreatmentShopifyVariant>> {
   const map = new Map<string, TreatmentShopifyVariant>();
   const res = await shopifyGraphql(
@@ -105,27 +135,29 @@ export async function listTreatmentShopifyVariants(): Promise<Map<string, Treatm
     }`
   );
 
-  const products =
-    (asRecord(res.data?.products)?.edges as {
-      node?: { legacyResourceId?: unknown; variants?: { nodes?: Record<string, unknown>[] } };
-    }[] | undefined) ?? [];
+  if (res.errors?.length) {
+    console.warn("[Treatments] GraphQL-lijst:", res.errors[0].message);
+  } else {
+    const products =
+      (asRecord(res.data?.products)?.edges as {
+        node?: { legacyResourceId?: unknown; variants?: { nodes?: Record<string, unknown>[] } };
+      }[] | undefined) ?? [];
 
-  for (const edge of products) {
-    const productId = numericId(edge.node?.legacyResourceId);
-    for (const node of edge.node?.variants?.nodes ?? []) {
-      const variant = variantFromNode(
-        { ...node, product: { legacyResourceId: productId } },
-        String(node.barcode || node.sku || "")
-      );
-      if (!variant) continue;
-      const keys = [variant.barcode, String(node.sku || ""), String(node.barcode || "")]
-        .map((k) => k.trim().toUpperCase())
-        .filter(Boolean);
-      for (const key of keys) map.set(key, variant);
+    for (const edge of products) {
+      const productId = numericId(edge.node?.legacyResourceId);
+      for (const node of edge.node?.variants?.nodes ?? []) {
+        const variant = variantFromNode(
+          { ...node, product: { legacyResourceId: productId } },
+          String(node.barcode || node.sku || "")
+        );
+        if (!variant) continue;
+        rememberVariant(map, variant, [String(node.sku || ""), String(node.barcode || "")]);
+      }
     }
   }
 
-  return map;
+  if (map.size > 0) return map;
+  return listTreatmentVariantsViaRest();
 }
 
 export async function disableTreatmentShipping(variantNumericId: number): Promise<void> {
