@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import { getAllProducts } from "@/lib/products";
 import { ShopFilter } from "@/components/ShopFilter";
 
@@ -18,6 +19,8 @@ export default async function ShopPage() {
   } catch {
     // Data source not available yet
   }
+
+  if (products.length === 0) noStore();
 
   return (
     <>

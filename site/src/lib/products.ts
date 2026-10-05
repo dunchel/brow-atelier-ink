@@ -3,11 +3,10 @@
  * Falls back to Shopify Storefront API only if the Sheet is not configured.
  */
 
-import { unstable_cache } from "next/cache";
-import { google } from "googleapis";
 import { getProducts as getShopifyProducts, type ShopifyProduct } from "./shopify";
+import { getSheetSnapshot } from "./sheet-read";
 import { isTreatmentCatalogItem, isTreatmentTabName } from "./treatment-catalog";
-import { parseSheetRows, slugify, tabNameFromRange, type Product } from "./sheet-rows";
+import { parseSheetRows, slugify, type Product } from "./sheet-rows";
 
 export { parseSheetRows, slugify };
 export type { Product };
@@ -15,32 +14,13 @@ export type { Product };
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const GOOGLE_CREDENTIALS_B64 = process.env.GOOGLE_CREDENTIALS_B64 || "";
 
-let sheetsClient: ReturnType<typeof google.sheets> | null = null;
-
-function getSheetsClient() {
-  if (sheetsClient) return sheetsClient;
-  if (!GOOGLE_CREDENTIALS_B64) throw new Error("GOOGLE_CREDENTIALS_B64 not set");
-
-  const creds = JSON.parse(Buffer.from(GOOGLE_CREDENTIALS_B64, "base64").toString("utf-8"));
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: creds.client_email,
-      private_key: creds.private_key,
-    },
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  });
-  sheetsClient = google.sheets({ version: "v4", auth });
-  return sheetsClient;
-}
-
 function isSheetConfigured(): boolean {
   return Boolean(SHEET_ID && GOOGLE_CREDENTIALS_B64);
 }
 
-/** Process-geheugen: vangt een 429 op dezelfde warme instance op. */
+/** Laatste goede catalogus als de gedeelde Sheet-cache ook leeg is. */
 let staleCache: { data: Product[]; timestamp: number } | null = null;
-let inflight: Promise<Product[]> | null = null;
-const STALE_TTL = 30 * 60_000;
+const STALE_TTL = 24 * 60 * 60_000;
 
 function sheetsErrorMessage(err: unknown): string {
   if (err && typeof err === "object" && "message" in err && typeof err.message === "string") {
@@ -49,69 +29,24 @@ function sheetsErrorMessage(err: unknown): string {
   return "Google Sheets onbereikbaar";
 }
 
-async function loadProductsFromSheet(): Promise<Product[]> {
-  const sheets = getSheetsClient();
-
-  const noRetry = { retry: false as const };
-  const meta = await sheets.spreadsheets.get(
-    {
-      spreadsheetId: SHEET_ID,
-      fields: "sheets.properties.title",
-    },
-    noRetry
-  );
-
-  const sheetNames = meta.data.sheets?.map((s) => s.properties?.title).filter(Boolean) as string[];
-  const catalogTabs = sheetNames.filter((name) => !isTreatmentTabName(name));
-
-  if (catalogTabs.length === 0) return [];
-
-  const batch = await sheets.spreadsheets.values.batchGet(
-    {
-      spreadsheetId: SHEET_ID,
-      ranges: catalogTabs.map((name) => `'${name}'!A1:Z1000`),
-    },
-    noRetry
-  );
-
+function productsFromSnapshot(tabs: { name: string; rows: string[][] }[]): Product[] {
   const allProducts: Product[] = [];
-  for (const valueRange of batch.data.valueRanges ?? []) {
-    const rows = valueRange.values as string[][] | undefined;
-    if (!rows || rows.length < 2) continue;
-    const tab = tabNameFromRange(valueRange.range || "") || "Onbekend";
-    allProducts.push(...parseSheetRows(rows, tab));
+  for (const tab of tabs) {
+    if (isTreatmentTabName(tab.name)) continue;
+    if (!tab.rows || tab.rows.length < 2) continue;
+    allProducts.push(...parseSheetRows(tab.rows, tab.name));
   }
-
-  console.log(
-    `[Products] Loaded ${allProducts.length} products from ${catalogTabs.length} tabs: ${catalogTabs.join(", ")}`
-  );
   return allProducts;
 }
-
-const getCachedSheetProducts = unstable_cache(loadProductsFromSheet, ["sheet-products"], {
-  revalidate: 60,
-  tags: ["products"],
-});
 
 async function getProductsFromSheet(fresh = false): Promise<Product[]> {
   if (!isSheetConfigured()) return [];
 
-  if (!fresh && staleCache && Date.now() - staleCache.timestamp < 60_000) {
-    return staleCache.data;
-  }
-
-  const run = async () => {
-    const data = fresh ? await loadProductsFromSheet() : await getCachedSheetProducts();
+  try {
+    const snapshot = await getSheetSnapshot({ fresh });
+    const data = productsFromSnapshot(snapshot.tabs);
     staleCache = { data, timestamp: Date.now() };
     return data;
-  };
-
-  try {
-    if (inflight) return await inflight;
-    inflight = run().finally(() => {
-      inflight = null;
-    });
-    return await inflight;
   } catch (err) {
     console.error("[Products] Google Sheets API error:", sheetsErrorMessage(err));
     if (staleCache && Date.now() - staleCache.timestamp < STALE_TTL) {

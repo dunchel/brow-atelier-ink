@@ -1,26 +1,11 @@
-import { google } from "googleapis";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { readBarcodeCell } from "@/lib/barcode-column";
 import { ensureCatalogBarcodes } from "@/lib/ensure-barcodes";
+import { getSheetSnapshot } from "@/lib/sheet-read";
+import { isDailySheetsQuota, isSheetsQuotaError } from "@/lib/sheet-snapshot";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-
-const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
-const GOOGLE_CREDENTIALS_B64 = process.env.GOOGLE_CREDENTIALS_B64 || "";
-
-function getSheetsClient() {
-  if (!GOOGLE_CREDENTIALS_B64) throw new Error("GOOGLE_CREDENTIALS_B64 not set");
-  const creds = JSON.parse(Buffer.from(GOOGLE_CREDENTIALS_B64, "base64").toString("utf-8"));
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: creds.client_email,
-      private_key: creds.private_key,
-    },
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  });
-  return google.sheets({ version: "v4", auth });
-}
 
 export interface LabelProduct {
   naam: string;
@@ -37,34 +22,22 @@ export interface LabelsSkippedRow {
   reason: "geen_naam" | "geen_barcode";
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const fresh = req.nextUrl.searchParams.get("fresh") === "1";
     try {
-      await ensureCatalogBarcodes();
+      await ensureCatalogBarcodes({ fresh });
     } catch (err) {
       console.error("[Labels] barcode-kolom aanvullen mislukt:", err);
     }
 
-    const sheets = getSheetsClient();
-
-    const meta = await sheets.spreadsheets.get({
-      spreadsheetId: SHEET_ID,
-      fields: "sheets.properties.title",
-    });
-
-    const sheetNames =
-      meta.data.sheets?.map((s) => s.properties?.title).filter(Boolean) as string[];
-
+    const snapshot = await getSheetSnapshot();
     const allProducts: LabelProduct[] = [];
     const skipped: LabelsSkippedRow[] = [];
 
-    for (const tabName of sheetNames) {
-      const res = await sheets.spreadsheets.values.get({
-        spreadsheetId: SHEET_ID,
-        range: `'${tabName}'!A1:Z2000`,
-      });
-
-      const rows = res.data.values as string[][] | undefined;
+    for (const tab of snapshot.tabs) {
+      const tabName = tab.name;
+      const rows = tab.rows;
       if (!rows || rows.length < 2) continue;
 
       const headers = rows[0].map((h) => h.trim().toLowerCase().replace(/\s+/g, ""));
@@ -129,6 +102,12 @@ export async function GET() {
     );
   } catch (err) {
     console.error("[Labels API]", err);
+    if (isSheetsQuotaError(err)) {
+      const error = isDailySheetsQuota(err)
+        ? "Daglimiet van Google Sheets is bereikt. De catalogus komt terug na de reset, meestal middernacht Pacific Time."
+        : "Google Sheet-limiet even bereikt. Wacht een minuut en ververs opnieuw.";
+      return NextResponse.json({ error }, { status: 503 });
+    }
     return NextResponse.json({ error: "Kan producten niet laden" }, { status: 500 });
   }
 }

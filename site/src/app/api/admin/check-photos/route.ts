@@ -1,24 +1,8 @@
-import { google } from "googleapis";
 import { NextResponse } from "next/server";
+import { getSheetSnapshot } from "@/lib/sheet-read";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
-const GOOGLE_CREDENTIALS_B64 = process.env.GOOGLE_CREDENTIALS_B64 || "";
-
-function getSheetsClient() {
-  if (!GOOGLE_CREDENTIALS_B64) throw new Error("GOOGLE_CREDENTIALS_B64 not set");
-  const creds = JSON.parse(Buffer.from(GOOGLE_CREDENTIALS_B64, "base64").toString("utf-8"));
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: creds.client_email,
-      private_key: creds.private_key,
-    },
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  });
-  return google.sheets({ version: "v4", auth });
-}
 
 interface ProductPhotoCheck {
   naam: string;
@@ -87,13 +71,7 @@ async function checkAllConcurrent<T>(
 
 export async function GET() {
   try {
-    const sheets = getSheetsClient();
-    const meta = await sheets.spreadsheets.get({
-      spreadsheetId: SHEET_ID,
-      fields: "sheets.properties.title",
-    });
-    const sheetNames =
-      meta.data.sheets?.map((s) => s.properties?.title).filter(Boolean) as string[];
+    const snapshot = await getSheetSnapshot();
 
     const productList: Array<{
       naam: string;
@@ -102,12 +80,9 @@ export async function GET() {
       url: string;
     }> = [];
 
-    for (const tabName of sheetNames) {
-      const res = await sheets.spreadsheets.values.get({
-        spreadsheetId: SHEET_ID,
-        range: `'${tabName}'!A1:Z1000`,
-      });
-      const rows = res.data.values as string[][] | undefined;
+    for (const tab of snapshot.tabs) {
+      const tabName = tab.name;
+      const rows = tab.rows;
       if (!rows || rows.length < 2) continue;
 
       const headers = rows[0].map((h) => h.trim().toLowerCase());

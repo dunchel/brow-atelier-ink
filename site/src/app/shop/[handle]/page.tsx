@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import { getAllProducts, getProductBySlug, formatProductPrice } from "@/lib/products";
 import { BuyButton } from "@/components/BuyButton";
@@ -35,6 +36,7 @@ export default async function ProductPage({ params }: PageProps) {
   const product = await getProductBySlug(params.handle);
 
   if (!product) {
+    noStore();
     notFound();
   }
 

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       batchSize: 1,
     }));
 
-    if (offset === 0) await ensureCatalogBarcodes();
+    if (offset === 0) await ensureCatalogBarcodes({ fresh: true });
     const inventory = await getAllInventoryProducts();
     if (inventory.length === 0) {
       return NextResponse.json({ error: "Geen producten in Google Sheet" }, { status: 400 });

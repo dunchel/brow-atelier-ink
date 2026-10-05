@@ -6,6 +6,7 @@ import {
   formatAimyPrice,
 } from "./meetaimy";
 import { readBarcodeCell } from "./barcode-column";
+import { getSheetSnapshot, invalidateSheetSnapshot } from "./sheet-read";
 import { isTreatmentBarcode, isTreatmentTabName } from "./treatment-catalog";
 
 export {
@@ -142,14 +143,6 @@ function getCredentials() {
   };
 }
 
-function getReadClient() {
-  const auth = new google.auth.GoogleAuth({
-    credentials: getCredentials(),
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  });
-  return google.sheets({ version: "v4", auth });
-}
-
 function getWriteClient() {
   const auth = new google.auth.GoogleAuth({
     credentials: getCredentials(),
@@ -193,27 +186,17 @@ function parseTreatmentRows(rows: string[][]): Treatment[] {
 }
 
 async function findTreatmentsTabName(): Promise<string | null> {
-  const sheets = getReadClient();
-  const meta = await sheets.spreadsheets.get({
-    spreadsheetId: SHEET_ID,
-    fields: "sheets.properties.title",
-  });
-  const names =
-    meta.data.sheets?.map((s) => s.properties?.title).filter(Boolean) as string[];
-  return names.find((n) => isTreatmentTabName(n)) ?? null;
+  const snapshot = await getSheetSnapshot();
+  return snapshot.tabs.find((tab) => isTreatmentTabName(tab.name))?.name ?? null;
 }
 
 export async function getTreatmentsFromSheet(): Promise<Treatment[]> {
   if (!SHEET_ID || !GOOGLE_CREDENTIALS_B64) return [];
   try {
-    const tab = await findTreatmentsTabName();
+    const snapshot = await getSheetSnapshot();
+    const tab = snapshot.tabs.find((item) => isTreatmentTabName(item.name));
     if (!tab) return [];
-    const sheets = getReadClient();
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: `'${tab}'!A1:Z200`,
-    });
-    return parseTreatmentRows((res.data.values as string[][]) || []);
+    return parseTreatmentRows(tab.rows);
   } catch (err) {
     console.error("[Treatments] Sheet read error:", err);
     return [];
@@ -298,6 +281,7 @@ async function writeTreatmentsToSheet(tab: string, treatments: Treatment[]) {
     requestBody: { values },
   });
   bustTreatmentsCache();
+  invalidateSheetSnapshot();
 }
 
 function isEmptyCatalog(treatments: Treatment[]): boolean {
@@ -373,6 +357,7 @@ async function ensureTreatmentsSheetTab(): Promise<{ created: boolean; tab: stri
       requests: [{ addSheet: { properties: { title: TREATMENT_TAB } } }],
     },
   });
+  invalidateSheetSnapshot();
   return { created: true, tab: TREATMENT_TAB };
 }
 
@@ -425,13 +410,11 @@ export async function updateTreatmentPrices(
   }
 
   await ensureTreatmentsSheet();
-  const tab = (await findTreatmentsTabName()) || TREATMENT_TAB;
+  const snapshot = await getSheetSnapshot({ fresh: true });
+  const tabSnap = snapshot.tabs.find((item) => isTreatmentTabName(item.name));
+  const tab = tabSnap?.name || TREATMENT_TAB;
   const sheets = getWriteClient();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: `'${tab}'!A1:Z200`,
-  });
-  const rows = (res.data.values as string[][]) || [];
+  const rows = (tabSnap?.rows || []).map((row) => [...row]);
   if (rows.length < 2) throw new Error("Behandelingen-tab is leeg");
 
   const headers = rows[0].map((h) => h.trim().toLowerCase().replace(/\s+/g, ""));
@@ -465,5 +448,6 @@ export async function updateTreatmentPrices(
   });
 
   bustTreatmentsCache();
+  invalidateSheetSnapshot();
   return getTreatments();
 }

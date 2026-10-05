@@ -15,8 +15,8 @@ export async function POST(req: NextRequest) {
       batchSize: 1,
     }));
 
-    if (offset === 0) await ensureCatalogBarcodes();
-    const allProducts = await getAllProducts({ fresh: true });
+    if (offset === 0) await ensureCatalogBarcodes({ fresh: true });
+    const allProducts = await getAllProducts();
     const inventory = await getAllInventoryProducts();
     const barcodeByTitle = new Map(
       inventory.map((p) => [normalizeTitle(p.naam), p.barcode])

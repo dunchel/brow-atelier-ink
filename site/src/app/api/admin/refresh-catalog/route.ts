@@ -6,8 +6,10 @@ export async function POST() {
   try {
     const products = await getAllProducts({ fresh: true });
     revalidateTag("products");
+    revalidateTag("sheet-snapshot");
     revalidatePath("/shop");
     revalidatePath("/");
+    revalidatePath("/shop/[handle]", "page");
     return NextResponse.json({
       ok: true,
       count: products.length,

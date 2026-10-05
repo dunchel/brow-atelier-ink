@@ -5,6 +5,11 @@
 
 import { google } from "googleapis";
 import { planBarcodeColumn } from "./barcode-column";
+import {
+  commitSheetSnapshot,
+  getSheetSnapshot,
+  patchSheetSnapshotTab,
+} from "./sheet-read";
 import { shopifyGraphql } from "./shopify-admin";
 import { isTreatmentTabName } from "./treatment-catalog";
 
@@ -75,50 +80,88 @@ async function reservedFromShopify(): Promise<Set<string>> {
   return reserved;
 }
 
-export async function ensureCatalogBarcodes(): Promise<{ assigned: number; tabs: number }> {
+function applyColumn(rows: string[][], colIndex: number, column: string[]): string[][] {
+  const next = rows.map((row) => [...row]);
+  for (let i = 0; i < column.length; i++) {
+    const row = [...(next[i] || [])];
+    while (row.length <= colIndex) row.push("");
+    row[colIndex] = column[i];
+    next[i] = row;
+  }
+  return next;
+}
+
+function plansFromSnapshot(
+  tabs: { name: string; rows: string[][] }[],
+  reserved: Set<string>
+) {
+  const plans: {
+    tab: string;
+    rows: string[][];
+    colIndex: number;
+    column: string[];
+    assigned: number;
+  }[] = [];
+
+  for (const tab of tabs) {
+    if (isTreatmentTabName(tab.name) || tab.rows.length === 0) continue;
+    const plan = planBarcodeColumn({ tab: tab.name, rows: tab.rows, reserved });
+    if (!plan?.changed) continue;
+    plans.push({
+      tab: tab.name,
+      rows: tab.rows,
+      colIndex: plan.colIndex,
+      column: plan.column,
+      assigned: plan.assigned,
+    });
+  }
+  return plans;
+}
+
+export async function ensureCatalogBarcodes(opts?: {
+  fresh?: boolean;
+}): Promise<{ assigned: number; tabs: number }> {
   if (!SHEET_ID || !GOOGLE_CREDENTIALS_B64) {
     return { assigned: 0, tabs: 0 };
   }
 
-  const sheets = getWriteClient();
-  const meta = await sheets.spreadsheets.get({
-    spreadsheetId: SHEET_ID,
-    fields: "sheets.properties.title",
-  });
-  const tabNames = (meta.data.sheets?.map((sheet) => sheet.properties?.title).filter(Boolean) ??
-    []) as string[];
+  if (opts?.fresh) {
+    await getSheetSnapshot({ fresh: true });
+  }
 
+  let snapshot = await getSheetSnapshot();
   const reserved = await reservedFromShopify();
-  const data: { range: string; values: string[][] }[] = [];
-  let assigned = 0;
+  let plans = plansFromSnapshot(snapshot.tabs, new Set(reserved));
 
-  for (const tab of tabNames) {
-    if (isTreatmentTabName(tab)) continue;
-
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: `${quoteTab(tab)}!A1:Z2000`,
-    });
-    const rows = (res.data.values as string[][]) || [];
-    if (rows.length === 0) continue;
-
-    const plan = planBarcodeColumn({ tab, rows, reserved });
-    if (!plan?.changed) continue;
-
-    assigned += plan.assigned;
-    const letter = colLetter(plan.colIndex);
-    data.push({
-      range: `${quoteTab(tab)}!${letter}1:${letter}${plan.column.length}`,
-      values: plan.column.map((value) => [value]),
-    });
+  if (plans.length > 0 && Date.now() - snapshot.fetchedAt > 2_000) {
+    const previousFetchedAt = snapshot.fetchedAt;
+    snapshot = await getSheetSnapshot({ fresh: true });
+    if (snapshot.fetchedAt === previousFetchedAt) {
+      return { assigned: 0, tabs: 0 };
+    }
+    plans = plansFromSnapshot(snapshot.tabs, new Set(reserved));
   }
 
-  if (data.length > 0) {
-    await sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId: SHEET_ID,
-      requestBody: { valueInputOption: "RAW", data },
-    });
-  }
+  if (plans.length === 0) return { assigned: 0, tabs: 0 };
 
-  return { assigned, tabs: data.length };
+  const data = plans.map((plan) => ({
+    range: `${quoteTab(plan.tab)}!${colLetter(plan.colIndex)}1:${colLetter(plan.colIndex)}${plan.column.length}`,
+    values: plan.column.map((value) => [value]),
+  }));
+
+  const sheets = getWriteClient();
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: { valueInputOption: "RAW", data },
+  });
+
+  for (const plan of plans) {
+    patchSheetSnapshotTab(plan.tab, applyColumn(plan.rows, plan.colIndex, plan.column));
+  }
+  await commitSheetSnapshot();
+
+  return {
+    assigned: plans.reduce((sum, plan) => sum + plan.assigned, 0),
+    tabs: plans.length,
+  };
 }

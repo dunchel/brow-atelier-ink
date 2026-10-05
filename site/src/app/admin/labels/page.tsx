@@ -105,10 +105,11 @@ export default function LabelsPage() {
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
-  const loadLabels = useCallback(() => {
+  const loadLabels = useCallback((fresh = false) => {
     setLoading(true);
     setError("");
-    fetch("/api/admin/labels", { cache: "no-store" })
+    const url = fresh ? "/api/admin/labels?fresh=1" : "/api/admin/labels";
+    fetch(url, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (data.products) {
@@ -813,6 +814,13 @@ export default function LabelsPage() {
       <div className="min-h-screen bg-brand-light pt-32 px-6 pb-20">
         <div className="max-w-4xl mx-auto text-center">
           <p className="text-red-500">{error}</p>
+          <button
+            type="button"
+            onClick={() => loadLabels(true)}
+            className="mt-4 underline text-brand-gold"
+          >
+            Opnieuw proberen
+          </button>
         </div>
       </div>
     );
@@ -836,7 +844,7 @@ export default function LabelsPage() {
               {" · "}
               <button
                 type="button"
-                onClick={loadLabels}
+                onClick={() => loadLabels(true)}
                 className="underline text-brand-gold hover:text-brand-dark"
               >
                 Ververs uit Sheet

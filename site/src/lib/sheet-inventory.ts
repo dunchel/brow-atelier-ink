@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { readBarcodeCell } from "./barcode-column";
+import { commitSheetSnapshot, getSheetSnapshot, patchSheetSnapshotTab } from "./sheet-read";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const GOOGLE_CREDENTIALS_B64 = process.env.GOOGLE_CREDENTIALS_B64 || "";
@@ -23,14 +24,6 @@ function getCredentials() {
     client_email: creds.client_email as string,
     private_key: creds.private_key as string,
   };
-}
-
-function getReadClient() {
-  const auth = new google.auth.GoogleAuth({
-    credentials: getCredentials(),
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  });
-  return google.sheets({ version: "v4", auth });
 }
 
 function getWriteClient() {
@@ -59,22 +52,12 @@ export function parseStockCount(voorraadRaw: string): number {
 }
 
 async function loadAllInventory(): Promise<InventoryProduct[]> {
-  const sheets = getReadClient();
-  const meta = await sheets.spreadsheets.get({
-    spreadsheetId: SHEET_ID,
-    fields: "sheets.properties.title",
-  });
-  const sheetNames =
-    meta.data.sheets?.map((s) => s.properties?.title).filter(Boolean) as string[];
-
+  const snapshot = await getSheetSnapshot();
   const all: InventoryProduct[] = [];
 
-  for (const tabName of sheetNames) {
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: `'${tabName}'!A1:Z1000`,
-    });
-    const rows = res.data.values as string[][] | undefined;
+  for (const tab of snapshot.tabs) {
+    const tabName = tab.name;
+    const rows = tab.rows;
     if (!rows || rows.length < 2) continue;
 
     const headers = rows[0].map((h) => h.trim().toLowerCase());
@@ -150,6 +133,18 @@ export async function updateStockByBarcode(
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [[String(newStock)]] },
   });
+
+  const snapshot = await getSheetSnapshot();
+  const tab = snapshot.tabs.find((item) => item.name === product.tabName);
+  if (tab) {
+    const rows = tab.rows.map((row) => [...row]);
+    const row = [...(rows[product.rowIndex - 1] || [])];
+    while (row.length <= product.voorraadColIndex) row.push("");
+    row[product.voorraadColIndex] = String(newStock);
+    rows[product.rowIndex - 1] = row;
+    patchSheetSnapshotTab(product.tabName, rows);
+    await commitSheetSnapshot();
+  }
 
   return {
     product: { ...product, voorraad: String(newStock) },

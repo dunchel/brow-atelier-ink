@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { unstable_noStore as noStore } from "next/cache";
 import { getAllProducts, formatProductPrice } from "@/lib/products";
 
 const MEETAIMY_URL =
@@ -43,9 +44,10 @@ export default async function HomePage() {
   let featuredProducts: Awaited<ReturnType<typeof getAllProducts>> = [];
   try {
     const all = await getAllProducts();
+    if (all.length === 0) noStore();
     featuredProducts = all.filter((p) => p.imageUrl && p.available).slice(0, 8);
   } catch {
-    // Products not available
+    noStore();
   }
   return (
     <>
