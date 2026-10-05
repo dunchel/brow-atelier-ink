@@ -68,7 +68,7 @@ function readName(headers: string[], row: string[]): string {
 function nextFree(prefix: string, used: Set<string>): string {
   const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-(\\d+)$`, "i");
   let max = 0;
-  for (const code of used) {
+  for (const code of Array.from(used)) {
     const match = code.match(pattern);
     if (match) max = Math.max(max, Number(match[1]));
   }
