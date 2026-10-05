@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { readBarcodeCell } from "./barcode-column";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const GOOGLE_CREDENTIALS_B64 = process.env.GOOGLE_CREDENTIALS_B64 || "";
@@ -89,7 +90,7 @@ async function loadAllInventory(): Promise<InventoryProduct[]> {
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       const naam = get(row, "naam") || get(row, "title") || get(row, "product");
-      const barcode = get(row, "barcode");
+      const barcode = readBarcodeCell(headers, row);
       if (!naam || !barcode) continue;
 
       all.push({

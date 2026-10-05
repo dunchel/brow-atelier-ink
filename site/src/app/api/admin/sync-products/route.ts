@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ensureCatalogBarcodes } from "@/lib/ensure-barcodes";
 import { getAllProducts } from "@/lib/products";
 import { getAllInventoryProducts } from "@/lib/sheet-inventory";
+
+export const maxDuration = 60;
 import { isRateLimitError } from "@/lib/shopify-admin";
 import { createShopifyProduct, findShopifyProductByTitle, takePublishWarning } from "@/lib/shopify-catalog";
 import { normalizeTitle } from "@/lib/product-match";
@@ -12,6 +15,7 @@ export async function POST(req: NextRequest) {
       batchSize: 1,
     }));
 
+    if (offset === 0) await ensureCatalogBarcodes();
     const allProducts = await getAllProducts({ fresh: true });
     const inventory = await getAllInventoryProducts();
     const barcodeByTitle = new Map(

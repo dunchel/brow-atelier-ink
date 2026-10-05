@@ -1,7 +1,10 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
+import { readBarcodeCell } from "@/lib/barcode-column";
+import { ensureCatalogBarcodes } from "@/lib/ensure-barcodes";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
 const GOOGLE_CREDENTIALS_B64 = process.env.GOOGLE_CREDENTIALS_B64 || "";
@@ -36,6 +39,12 @@ export interface LabelsSkippedRow {
 
 export async function GET() {
   try {
+    try {
+      await ensureCatalogBarcodes();
+    } catch (err) {
+      console.error("[Labels] barcode-kolom aanvullen mislukt:", err);
+    }
+
     const sheets = getSheetsClient();
 
     const meta = await sheets.spreadsheets.get({
@@ -73,7 +82,7 @@ export async function GET() {
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         const naam = get(row, "naam", "title", "product");
-        const barcode = get(row, "barcode", "sku", "productcode", "ean", "artikelcode");
+        const barcode = readBarcodeCell(headers, row);
 
         if (!naam && !barcode) continue;
 

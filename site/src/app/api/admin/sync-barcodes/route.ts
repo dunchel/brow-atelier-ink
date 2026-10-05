@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ensureCatalogBarcodes } from "@/lib/ensure-barcodes";
 import { getAllInventoryProducts } from "@/lib/sheet-inventory";
+
+export const maxDuration = 60;
 import { isRateLimitError, shopifyErrorMessage, shopifyRest } from "@/lib/shopify-admin";
 
 interface ShopifyProduct {
@@ -24,6 +27,7 @@ export async function POST(req: NextRequest) {
       batchSize: 1,
     }));
 
+    if (offset === 0) await ensureCatalogBarcodes();
     const inventory = await getAllInventoryProducts();
     if (inventory.length === 0) {
       return NextResponse.json({ error: "Geen producten in Google Sheet" }, { status: 400 });

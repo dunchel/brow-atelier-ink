@@ -5,6 +5,7 @@ import {
   formatAimyDuration,
   formatAimyPrice,
 } from "./meetaimy";
+import { readBarcodeCell } from "./barcode-column";
 import { isTreatmentBarcode, isTreatmentTabName } from "./treatment-catalog";
 
 export {
@@ -175,7 +176,7 @@ function parseTreatmentRows(rows: string[][]): Treatment[] {
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     const naam = get(row, "naam", "title", "behandeling", "product");
-    const barcode = get(row, "barcode", "sku", "productcode");
+    const barcode = readBarcodeCell(headers, row);
     if (!naam || !barcode) continue;
     items.push({
       naam,
@@ -437,6 +438,7 @@ export async function updateTreatmentPrices(
   const barcodeIdx = ["barcode", "sku", "productcode"]
     .map((k) => headers.indexOf(k))
     .find((i) => i >= 0);
+  const rowCode = (row: string[]) => readBarcodeCell(headers, row).toUpperCase();
   let prijsIdx = ["prijs", "price"].map((k) => headers.indexOf(k)).find((i) => i >= 0);
   if (barcodeIdx === undefined) throw new Error("Geen barcode-kolom in Behandelingen-tab");
   if (prijsIdx === undefined) {
@@ -447,7 +449,7 @@ export async function updateTreatmentPrices(
   const byCode = new Map(updates.map((u) => [u.barcode.trim().toUpperCase(), u.prijs]));
   const next = rows.map((row, i) => {
     if (i === 0) return row;
-    const code = (row[barcodeIdx] || "").trim().toUpperCase();
+    const code = rowCode(row) || (row[barcodeIdx] || "").trim().toUpperCase();
     if (!code || !byCode.has(code)) return row;
     const copy = [...row];
     while (copy.length <= prijsIdx) copy.push("");
