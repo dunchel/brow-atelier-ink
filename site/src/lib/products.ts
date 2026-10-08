@@ -6,9 +6,9 @@
 import { getProducts as getShopifyProducts, type ShopifyProduct } from "./shopify";
 import { getSheetSnapshot } from "./sheet-read";
 import { isTreatmentCatalogItem, isTreatmentTabName } from "./treatment-catalog";
-import { parseSheetRows, slugify, type Product } from "./sheet-rows";
+import { hasSellablePrice, parsePriceValue, parseSheetRows, slugify, type Product } from "./sheet-rows";
 
-export { parseSheetRows, slugify };
+export { hasSellablePrice, parsePriceValue, parseSheetRows, slugify };
 export type { Product };
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";
@@ -29,13 +29,31 @@ function sheetsErrorMessage(err: unknown): string {
   return "Google Sheets onbereikbaar";
 }
 
+/** Rijen die wel een naam hebben maar geen bedrag; voor de admin-melding. */
+let priceless: { title: string; category: string }[] = [];
+
+/** Welke Sheet-rijen zijn overgeslagen omdat er geen prijs in staat. */
+export function getPricelessRows(): { title: string; category: string }[] {
+  return priceless;
+}
+
 function productsFromSnapshot(tabs: { name: string; rows: string[][] }[]): Product[] {
   const allProducts: Product[] = [];
+  const skipped: { title: string; category: string }[] = [];
   for (const tab of tabs) {
     if (isTreatmentTabName(tab.name)) continue;
     if (!tab.rows || tab.rows.length < 2) continue;
-    allProducts.push(...parseSheetRows(tab.rows, tab.name));
+    for (const product of parseSheetRows(tab.rows, tab.name)) {
+      // Een rij zonder bedrag hoort niet in de winkel: anders staat hij voor
+      // € 0,00 online en kan iemand hem bestellen.
+      if (!hasSellablePrice(product)) {
+        skipped.push({ title: product.title, category: product.category });
+        continue;
+      }
+      allProducts.push(product);
+    }
   }
+  priceless = skipped;
   return allProducts;
 }
 

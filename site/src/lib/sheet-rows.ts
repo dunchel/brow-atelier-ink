@@ -25,6 +25,29 @@ export interface Product {
   stock: number | null;
 }
 
+/**
+ * Prijs uit een Sheet-cel als getal. `null` zodra er geen bedrag staat:
+ * leeg, tekst, nul of negatief. Zo'n rij mag nooit als € 0,00 in de winkel
+ * belanden, dus de aanroeper laat hem weg in plaats van hem op nul te zetten.
+ */
+export function parsePriceValue(raw: string | undefined | null): number | null {
+  const text = (raw ?? "").trim();
+  if (!text) return null;
+  const cleaned = text
+    .replace(/[€\s]/g, "")
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+    .replace(",", ".");
+  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return null;
+  const num = Number(cleaned);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return num;
+}
+
+/** Een product is alleen te koop met een echt bedrag erop. */
+export function hasSellablePrice(product: Pick<Product, "price">): boolean {
+  return parsePriceValue(product.price) !== null;
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -54,6 +77,8 @@ export function parseSheetRows(rows: string[][], categoryOverride?: string): Pro
       const title = get("naam") || get("title") || get("product");
       if (!title) return null;
 
+      const priceNumber = parsePriceValue(get("prijs") || get("price"));
+
       const foto = get("foto") || get("afbeelding") || get("image");
       const foto2 = get("foto_2") || get("foto 2");
       const foto3 = get("foto_3") || get("foto 3");
@@ -82,7 +107,7 @@ export function parseSheetRows(rows: string[][], categoryOverride?: string): Pro
           handle: slugify(title),
           title,
           description: get("beschrijving") || get("description") || get("omschrijving"),
-          price: get("prijs") || get("price") || "0",
+          price: priceNumber === null ? "" : String(priceNumber),
           compareAtPrice: get("oude prijs") || get("was prijs") || get("compare at price") || undefined,
           category,
           brand,
@@ -90,7 +115,8 @@ export function parseSheetRows(rows: string[][], categoryOverride?: string): Pro
           imageUrl: foto,
           images: [foto, foto2, foto3].filter(Boolean),
           imageAlt: get("foto alt") || get("image alt") || title,
-          available: isAvailable,
+          // Zonder bedrag nooit te koop, ook niet als er voorraad staat.
+          available: isAvailable && priceNumber !== null,
           stock,
       } as Product;
     })

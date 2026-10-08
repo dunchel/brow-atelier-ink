@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildDirectCheckoutUrl, createCart } from "@/lib/cart";
+import { buildDirectCheckoutUrl, CART_ZERO_PRICE_MESSAGE, createCart, variantPriceAmount } from "@/lib/cart";
 import { resolveOrderableVariant } from "@/lib/shopify-catalog";
 
 export const runtime = "nodejs";
@@ -46,6 +46,20 @@ export async function POST(req: NextRequest) {
 
     if (!variantId) {
       return NextResponse.json({ error: "Geen product opgegeven" }, { status: 400 });
+    }
+
+    // Grens vóór elke checkout-route, ook vóór de Online Store-terugval:
+    // zonder bedrag boven nul gaat er niets naar een checkout.
+    const amount = await variantPriceAmount(variantId);
+    if (amount === null || amount <= 0) {
+      console.warn("[Checkout] Variant zonder prijs geweigerd:", variantId, amount);
+      return NextResponse.json(
+        {
+          error: CART_ZERO_PRICE_MESSAGE,
+          whatsapp: whatsappLink(productTitle || "dit product"),
+        },
+        { status: 409 }
+      );
     }
 
     // Alleen het variant-id; In winkelwagen mag nooit een checkout-URL krijgen.

@@ -186,6 +186,44 @@ export function isMerchandiseMissingError(err: unknown): boolean {
 export const CART_ADD_UNAVAILABLE_MESSAGE =
   "Dit product kon niet in je mandje. Het staat nog niet op het verkoopkanaal van de webshop. Gebruik Koop nu, of zet het product op verkoopkanalen via Admin → Sync Shopify.";
 
+/** Klanttekst zodra een variant nog geen bedrag heeft staan. */
+export const CART_ZERO_PRICE_MESSAGE =
+  "Dit product heeft nog geen prijs en kan daarom niet besteld worden. Vraag ons even via WhatsApp.";
+
+/**
+ * Prijs van een variant volgens Shopify zelf, in euro's. `null` als de variant
+ * niet te vinden is. Dit is de server-side grens: de UI kan iets anders laten
+ * zien, maar een regel van € 0,00 mag nooit in een mandje of checkout komen.
+ */
+export async function variantPriceAmount(variantId: string): Promise<number | null> {
+  try {
+    const { data } = await storeFetch(
+      `query variantPrice($id: ID!) {
+        node(id: $id) {
+          ... on ProductVariant { price { amount } }
+        }
+      }`,
+      { id: variantId }
+    );
+    const raw = data?.node?.price?.amount;
+    if (raw == null) return null;
+    const num = Number(String(raw));
+    return Number.isFinite(num) ? num : null;
+  } catch (err) {
+    console.error("[Cart] Prijscheck mislukt:", err);
+    return null;
+  }
+}
+
+/** Mag deze variant besteld worden? Alleen met een bedrag boven nul. */
+export async function assertVariantHasPrice(variantId: string): Promise<void> {
+  const amount = await variantPriceAmount(variantId);
+  if (amount === null || amount <= 0) {
+    console.warn("[Cart] Variant zonder prijs geweigerd:", variantId, amount);
+    throw new Error(CART_ZERO_PRICE_MESSAGE);
+  }
+}
+
 export function forgetStorefrontVariant(variantId: string) {
   storefrontVariantCache.delete(variantId);
 }

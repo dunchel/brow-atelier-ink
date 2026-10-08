@@ -1,5 +1,6 @@
 import {
   addToCart,
+  assertVariantHasPrice,
   CART_ADD_UNAVAILABLE_MESSAGE,
   createCart,
   forgetStorefrontVariant,
@@ -28,6 +29,9 @@ export async function addCartLine(
   variantId: string,
   quantity = 1
 ): Promise<Cart> {
+  // Eerst de prijs, dan de regel: een product van € 0,00 komt er niet in.
+  await assertVariantHasPrice(variantId);
+
   try {
     return await addLine(cartId, variantId, quantity);
   } catch (err) {
