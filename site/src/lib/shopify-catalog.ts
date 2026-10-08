@@ -8,7 +8,7 @@
  * bestelling alsnog aan, met exact dezelfde velden als de admin-sync.
  */
 
-import { getAllProducts, type Product } from "./products";
+import { parsePriceValue, getAllProducts, type Product } from "./products";
 import { getAllInventoryProducts } from "./sheet-inventory";
 import { shopifyErrorMessage, shopifyRest } from "./shopify-admin";
 import { handleize, normalizeTitle, titlesMatch } from "./product-match";
@@ -103,7 +103,13 @@ export async function createShopifyProduct(product: {
   category: string;
   barcode?: string;
 }): Promise<ShopifyProductRow> {
-  const price = product.price.replace(",", ".");
+  // Laatste grens voor Shopify: een product zonder bedrag hoort er niet in,
+  // want dan staat het daarna voor EUR 0,00 in de winkel.
+  const priceNumber = parsePriceValue(product.price);
+  if (priceNumber === null) {
+    throw new Error(`${product.title} heeft geen prijs in de Sheet; niet aangemaakt in Shopify.`);
+  }
+  const price = String(priceNumber);
   const compareAtPrice = product.compareAtPrice?.replace(",", ".") || undefined;
 
   const imgSrcs = product.images.filter(Boolean).map((src) => ({ src }));

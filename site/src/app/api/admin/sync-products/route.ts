@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCatalogBarcodes } from "@/lib/ensure-barcodes";
-import { getAllProducts } from "@/lib/products";
+import { getAllProducts, getPricelessRows } from "@/lib/products";
 import { getAllInventoryProducts } from "@/lib/sheet-inventory";
 
 export const maxDuration = 60;
@@ -66,6 +66,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       summary: {
         total: allProducts.length,
+        // Rijen zonder bedrag gaan niet naar Shopify; vul de prijs in de Sheet aan.
+        pricelessSkipped: getPricelessRows().length,
         created,
         skipped,
         failed,
