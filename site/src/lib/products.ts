@@ -8,7 +8,7 @@ import { getSheetSnapshot } from "./sheet-read";
 import { isTreatmentCatalogItem, isTreatmentTabName } from "./treatment-catalog";
 import { hasSellablePrice, parsePriceValue, parseSheetRows, slugify, type Product } from "./sheet-rows";
 
-export { hasSellablePrice, parsePriceValue, parseSheetRows, slugify };
+export { hasSellablePrice, isMarkedUnavailable, parsePriceValue, parseSheetRows, slugify };
 export type { Product };
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || "";

@@ -109,7 +109,7 @@ export default async function ProductPage({ params }: PageProps) {
             )}
 
             <div className="mb-4">
-              <BuyButton productTitle={product.title} />
+              {product.available && <BuyButton productTitle={product.title} />}
               <div className="mt-3">
                 <a
                   href={`https://wa.me/31623747712?text=${encodeURIComponent(

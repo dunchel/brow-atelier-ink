@@ -35,6 +35,12 @@ export async function POST(req: NextRequest) {
 
     for (const product of batch) {
       try {
+        if (!product.available) {
+          results.push({ title: product.title, status: "unavailable" });
+          skipped++;
+          continue;
+        }
+
         const existing = await findShopifyProductByTitle(product.title);
         if (existing) {
           results.push({ title: product.title, status: "exists" });

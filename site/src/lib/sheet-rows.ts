@@ -48,6 +48,19 @@ export function hasSellablePrice(product: Pick<Product, "price">): boolean {
   return parsePriceValue(product.price) !== null;
 }
 
+/**
+ * De kolom Beschikbaar. `nee` en `niet beschikbaar` betekenen: niet te koop,
+ * ook als er nog voorraad in de winkel ligt.
+ */
+export function isMarkedUnavailable(raw: string | undefined | null): boolean {
+  const value = (raw ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!value) return false;
+  if (value === "nee" || value === "neen" || value === "no" || value === "false") return true;
+  if (value === "niet" || value.startsWith("niet ")) return true;
+  if (value === "uitverkocht" || value === "uit verkocht") return true;
+  return false;
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -94,13 +107,16 @@ export function parseSheetRows(rows: string[][], categoryOverride?: string): Pro
         const beschikbaar = get("beschikbaar") || get("available") || "";
         const category = categoryOverride || get("categorie") || get("category") || get("type");
 
-        // Voorraad > 0 = beschikbaar, ongeacht de "beschikbaar" kolom.
-        // Staat er geen getal in de voorraad-cel (leeg, of tekst als "ja"),
-        // dan beslist de kolom "beschikbaar" — een niet-numerieke cel mag
-        // nooit als voorraad 0 gelden.
+        // "nee" / "niet beschikbaar" wint van de voorraad: dan niet online te koop.
+        // Zonder die markering beslist een getal in de voorraad-cel.
+        // Lege of tekstuele voorraad (en geen "nee") blijft beschikbaar —
+        // een niet-numerieke cel mag nooit als voorraad 0 gelden.
         const stock = parseStockValue(voorraad);
-        const isAvailable =
-          stock !== null ? stock > 0 : beschikbaar.toLowerCase() !== "nee";
+        const isAvailable = isMarkedUnavailable(beschikbaar)
+          ? false
+          : stock !== null
+            ? stock > 0
+            : true;
 
         return {
           id: `sheet-${category}-${i}`,

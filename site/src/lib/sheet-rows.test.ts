@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasSellablePrice, parsePriceValue, parseSheetRows, tabNameFromRange } from "./sheet-rows.ts";
+import {
+  hasSellablePrice,
+  isMarkedUnavailable,
+  parsePriceValue,
+  parseSheetRows,
+  tabNameFromRange,
+} from "./sheet-rows.ts";
 
 const HEADERS = ["Naam", "Prijs", "Beschrijving", "Categorie", "Voorraad", "Foto", "Tags", "Beschikbaar", "Oude prijs"];
 
@@ -30,6 +36,25 @@ test("een voorraad-cel met tekst valt terug op de kolom beschikbaar", () => {
 test("lege voorraad en lege beschikbaar blijft beschikbaar", () => {
   const products = parseSheetRows([HEADERS, row("Zera ketting", "", "")], "Kettingen");
   assert.equal(products[0].available, true);
+});
+
+test("beschikbaar nee wint van voorraad", () => {
+  const products = parseSheetRows(
+    [
+      HEADERS,
+      row("Dorée piercing", "2", "nee"),
+      row("Lattafa ASAD", "4", "Niet beschikbaar"),
+      row("Sova ketting", "3", "ja"),
+    ],
+    "Piercings"
+  );
+  assert.equal(products[0].available, false);
+  assert.equal(products[1].available, false);
+  assert.equal(products[2].available, true);
+  assert.equal(isMarkedUnavailable("nee"), true);
+  assert.equal(isMarkedUnavailable("niet beschikbaar"), true);
+  assert.equal(isMarkedUnavailable("ja"), false);
+  assert.equal(isMarkedUnavailable(""), false);
 });
 
 test("tabNameFromRange haalt de tab uit een batchGet-range", () => {
